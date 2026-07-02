@@ -5,7 +5,7 @@ import { BLOCKS, AIR, LEAVES } from './blocks.js';
 import { CHUNK, H } from './world.js';
 import { tileFor } from './textures.js';
 
-const WAVY_CROSS = new Set([38, 39, 40, 41, 42, 43, 72, 73]); // plants that sway (not torch/ladder)
+const WAVY_CROSS = new Set([38, 39, 40, 41, 42, 43, 72, 73, 76, 77, 78, 79, 80, 81, 82, 83, 84]); // plants that sway (not torch/ladder)
 const LEAF_SET = new Set(LEAVES);
 
 // face dirs: 0 +x, 1 -x, 2 +y, 3 -y, 4 +z, 5 -z

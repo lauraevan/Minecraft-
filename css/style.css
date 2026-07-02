@@ -9,7 +9,21 @@ html,body { width:100%; height:100%; overflow:hidden; background:#000;
   position:fixed; inset:0; display:flex; flex-direction:column;
   align-items:center; justify-content:center; z-index:20; color:#fff;
 }
-#menu { background: linear-gradient(#6ab5f0 0%, #a8d8f8 55%, #7a5a3a 55.2%, #4f3a24 100%); }
+#menu, #mpscreen { background: linear-gradient(#6ab5f0 0%, #a8d8f8 55%, #7a5a3a 55.2%, #4f3a24 100%); }
+#menu.dirtbg, #mpscreen.dirtbg { background-color:#3a2a1c; background-blend-mode:multiply; image-rendering:pixelated; }
+.titlewrap { position:relative; margin-bottom:26px; }
+#splash {
+  position:absolute; right:-70px; bottom:-6px; color:#ffff55; font-weight:bold; font-size:16px;
+  text-shadow:2px 2px 0 #3f3f00; transform:rotate(-12deg); animation:splashpulse 0.5s infinite alternate;
+  max-width:220px; text-align:center; pointer-events:none;
+}
+@keyframes splashpulse { from { transform:rotate(-12deg) scale(1); } to { transform:rotate(-12deg) scale(1.07); } }
+.mbtn.primary { background:#6a9c50; }
+.mver { position:absolute; left:8px; bottom:6px; color:#ccc; font-size:11px; text-shadow:1px 1px 0 #222; }
+.mpbox { background:rgba(0,0,0,0.5); color:#dfd; padding:10px; font-size:15px; text-align:center; line-height:1.6; }
+#mpstatus { color:#ffe; font-size:13px; text-align:center; min-height:18px; text-shadow:1px 1px 0 #222; }
+#joincode { font-family:inherit; font-size:16px; padding:9px; background:#111; color:#eee; border:2px solid #555; outline:none; text-transform:uppercase; }
+#loadpct { color:#fff; margin-top:8px; font-size:14px; }
 #pause, #death, #invscreen, #loading { background:rgba(0,0,0,0.55); }
 #death { background:rgba(120,0,0,0.5); }
 .title {
@@ -152,3 +166,5 @@ html,body { width:100%; height:100%; overflow:hidden; background:#000;
   #statusbars, #xpbar { width:96vw; }
   #hotbar { transform:translateX(-50%) scale(0.82); transform-origin:bottom center; }
 }
+
+.palgrid { max-height: 244px; overflow-y: auto; }

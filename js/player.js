@@ -170,6 +170,9 @@ export class Player {
     this.damageFlash = 0;
     this.stats = { mined: 0, placed: 0, kills: 0, deaths: 0 };
     this.xp = 0; this.level = 0;
+    this.gamemode = 'survival';
+    this.flying = false;
+    this.lastSpaceTap = -1;
     this.onDamaged = null; // callback(amount)
     this.onLevelUp = null;
   }
@@ -198,6 +201,7 @@ export class Player {
   }
 
   damage(amount, opts = {}) {
+    if (this.gamemode !== 'survival') return;
     if (this.dead || this.invuln > 0 || amount <= 0) return;
     if (!opts.bypassArmor) {
       const red = Math.min(0.8, this.armorPoints() * 0.04);
@@ -282,6 +286,37 @@ export class Player {
     this.vel.x = lerp(this.vel.x, tx, Math.min(1, accel * dt));
     this.vel.z = lerp(this.vel.z, tz, Math.min(1, accel * dt));
 
+    // --- flight (creative double-tap space; spectator always flies) ---
+    if (this.gamemode === 'creative' && !uiOpen && input.justKeys['Space']) {
+      const now = performance.now();
+      if (now - this.lastSpaceTap < 300) { this.flying = !this.flying; this.vel.y = 0; }
+      this.lastSpaceTap = now;
+    }
+    if (this.gamemode === 'spectator') this.flying = true;
+    if (this.flying && this.gamemode === 'survival') this.flying = false;
+
+    if (this.flying) {
+      const flySpeed = this.gamemode === 'spectator' ? 14 : 9;
+      this.vel.x = lerp(this.vel.x, tx / speed * flySpeed || 0, Math.min(1, 10 * dt));
+      this.vel.z = lerp(this.vel.z, tz / speed * flySpeed || 0, Math.min(1, 10 * dt));
+      let vy = 0;
+      if (jumpHeld) vy = flySpeed * 0.8;
+      else if (this.sneaking) vy = -flySpeed * 0.8;
+      this.vel.y = lerp(this.vel.y, vy, Math.min(1, 10 * dt));
+      this.fallStart = null;
+      if (this.gamemode === 'spectator') {
+        // noclip: move freely through blocks
+        this.pos.x += this.vel.x * dt; this.pos.y += this.vel.y * dt; this.pos.z += this.vel.z * dt;
+        this.pos.y = clamp(this.pos.y, -4, H + 40);
+      } else {
+        collideEntity(this.world, this, dt);
+        if (this.onGround) this.flying = false;
+      }
+      // no survival ticks while flying in creative/spectator
+      this.invuln = Math.max(this.invuln, 0.1);
+      return;
+    }
+
     // --- vertical ---
     if (this.inWater) {
       this.vel.y -= 10 * dt;
@@ -318,6 +353,7 @@ export class Player {
     if (this.sprinting) this.exhaustion += dt * Math.hypot(this.vel.x, this.vel.z) * 0.02;
 
     // --- survival ticks ---
+    if (this.gamemode !== 'survival') { this.air = 10; return; }
     this.envTimer += dt;
     if (this.envTimer >= 0.5) {
       this.envTimer = 0;

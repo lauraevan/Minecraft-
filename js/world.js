@@ -328,6 +328,17 @@ export class World {
     }
   }
 
+  growTree(wx, wy, wz, species) {
+    // runtime growth (saplings): writes through setBlock so light/meshes update
+    const rng = mulberry32((this.seed ^ (wx * 341 + wy * 1543 + wz * 7919)) >>> 0);
+    const set = (x, y, z, id) => {
+      if (y < 0 || y >= H) return;
+      const cur = this.getBlock(x, y, z);
+      if (cur === AIR || BLOCKS[cur].cross || (BLOCKS[cur].transparent && !BLOCKS[cur].fluid)) this.setBlock(x, y, z, id);
+    };
+    this.treeShape(set, rng, wx, wy, wz, species);
+  }
+
   placeTree(c, rng, x, y, z, species) {
     const bl = c.blocks;
     const set = (lx, ly, lz, id) => {
@@ -335,6 +346,10 @@ export class World {
       const i = idx(lx, ly, lz);
       if (bl[i] === AIR || BLOCKS[bl[i]].cross || (BLOCKS[bl[i]].transparent && id !== 0)) bl[i] = id;
     };
+    this.treeShape(set, rng, x, y, z, species);
+  }
+
+  treeShape(set, rng, x, y, z, species) {
     const [logId, leafId] = [[10, 11], [13, 14], [16, 17], [59, 60], [65, 66], [68, 69]][species];
     if (species === 4) { // cherry: short trunk, wide fluffy blossom canopy
       const th = 4 + (rng() * 2 | 0);

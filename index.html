@@ -5,9 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Crafter Mine</title>
 <link rel="stylesheet" href="css/style.css">
-<script type="importmap">
-{ "imports": { "three": "./js/vendor/three.module.min.js" } }
+<script>
+// surface fatal errors on-screen (invaluable on mobile)
+(function () {
+  function show(msg) {
+    var d = document.getElementById('errbox');
+    if (!d) {
+      d = document.createElement('div');
+      d.id = 'errbox';
+      d.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#a00;color:#fff;font:12px monospace;padding:8px;z-index:999;white-space:pre-wrap;max-height:40%;overflow:auto';
+      document.body.appendChild(d);
+    }
+    d.textContent += msg + '\n';
+  }
+  window.addEventListener('error', function (e) { show((e.message || e.type) + ' @ ' + (e.filename || '') + ':' + (e.lineno || '')); });
+  window.addEventListener('unhandledrejection', function (e) { show('Promise: ' + (e.reason && e.reason.message || e.reason)); });
+})();
 </script>
+<script src="js/vendor/peerjs.min.js"></script>
 </head>
 <body>
 <div id="game"></div>
@@ -42,16 +57,30 @@
 
 <!-- Main menu -->
 <div id="menu" class="screen">
-  <h1 class="title">CRAFTER&nbsp;MINE</h1>
-  <div class="subtitle">a voxel sandbox survival game</div>
+  <div class="titlewrap">
+    <h1 class="title">CRAFTER&nbsp;MINE</h1>
+    <div id="splash">A whole new world!</div>
+  </div>
   <div class="menubox">
     <input id="seedinput" type="text" placeholder="World seed (optional)" maxlength="32">
-    <button id="btn-new" class="mbtn">New World</button>
+    <button id="btn-gamemode" class="mbtn">Game Mode: Survival</button>
+    <button id="btn-new" class="mbtn primary">Create New World</button>
     <button id="btn-continue" class="mbtn" disabled>Continue World</button>
-    <div class="menuhint">
-      WASD move &middot; Mouse look &middot; L-click mine &middot; R-click place/use<br>
-      E inventory &middot; Q drop &middot; Ctrl sprint &middot; Shift sneak &middot; F3 debug &middot; Esc pause
-    </div>
+    <button id="btn-mp" class="mbtn">Multiplayer</button>
+  </div>
+  <div class="mver">Crafter Mine · HUD art hand-drawn in ibis Paint</div>
+</div>
+
+<!-- Multiplayer menu -->
+<div id="mpscreen" class="screen hidden">
+  <h2>Multiplayer Co-op</h2>
+  <div class="menubox">
+    <button id="btn-host" class="mbtn primary">Host My World</button>
+    <div id="hostinfo" class="mpbox hidden">Room code: <b id="roomcode">…</b><br><small>Friends press Join and type this code.</small></div>
+    <input id="joincode" type="text" placeholder="Room code (e.g. ABQ4XT)" maxlength="8" autocapitalize="characters">
+    <button id="btn-join" class="mbtn">Join Game</button>
+    <div id="mpstatus"></div>
+    <button id="btn-mp-back" class="mbtn danger">Back</button>
   </div>
 </div>
 
@@ -61,7 +90,7 @@
   <div class="menubox">
     <button id="btn-resume" class="mbtn">Back to Game</button>
     <button id="btn-save" class="mbtn">Save World</button>
-    <div class="setting"><label>Shaders <span id="shader-val"></span></label><input id="set-shader" type="range" min="0" max="2" step="1"></div>
+    <div class="setting"><label>Shaders <span id="shader-val"></span></label><input id="set-shader" type="range" min="0" max="4" step="1"></div>
     <div class="setting"><label>Render distance <span id="rd-val"></span></label><input id="set-rd" type="range" min="2" max="8" step="1"></div>
     <div class="setting"><label>Field of view <span id="fov-val"></span></label><input id="set-fov" type="range" min="50" max="110" step="1"></div>
     <div class="setting"><label>Mouse sensitivity <span id="sens-val"></span></label><input id="set-sens" type="range" min="1" max="20" step="1"></div>
@@ -80,7 +109,7 @@
   </div>
 </div>
 
-<div id="loading" class="screen hidden"><h2>Generating world&hellip;</h2><div id="loadbar"><div id="loadfill"></div></div></div>
+<div id="loading" class="screen hidden"><h2>Generating world&hellip;</h2><div id="loadbar"><div id="loadfill"></div></div><div id="loadpct">0%</div></div>
 
 <script type="module" src="js/main.js"></script>
 </body>

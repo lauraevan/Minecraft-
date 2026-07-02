@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------
 // entities.js — mobs (AI), item drops, arrows, particles, explosions
 // ---------------------------------------------------------------
-import * as THREE from 'three';
+import * as THREE from './vendor/three.module.min.js';
 import { BLOCKS, ITEMS, AIR } from './blocks.js';
 import { collideEntity } from './player.js';
 import { clamp } from './util.js';
@@ -18,9 +18,11 @@ export const MOB_TYPES = {
   skeleton: { w: 0.6, h: 1.9, hp: 20, speed: 2.5, ranged: true, burns: true, drops: r => [{ id: 279, n: r() * 3 | 0 }, { id: 283, n: r() * 3 | 0 }].filter(d => d.n > 0) },
   spider:   { w: 1.2, h: 0.9, hp: 16, speed: 2.8, dmg: 2, reach: 1.9, climbs: true, neutralDay: true, drops: r => [{ id: 267, n: 1 + (r() * 2 | 0) }] },
   creeper:  { w: 0.6, h: 1.7, hp: 20, speed: 2.4, exploder: true, drops: r => r() < 0.8 ? [{ id: 280, n: 1 + (r() * 2 | 0) }] : [] },
+  wolf:     { w: 0.6, h: 0.85, hp: 12, speed: 2.6, passive: true, tameable: true, dmg: 3, drops: () => [] },
 };
 const HOSTILES = ['zombie', 'skeleton', 'spider', 'creeper'];
-const PASSIVES = ['cow', 'pig', 'sheep', 'chicken'];
+const PASSIVES = ['cow', 'pig', 'sheep', 'chicken', 'wolf'];
+const WOLF_BIOMES = [3, 5, 10, 11]; // forest, taiga, meadow, birch
 
 // ---------------- mob box models ----------------
 // flags: leg (walk swing), arm (swing/flap), head (yaw/pitch pivot), hp (attached to head)
@@ -80,6 +82,24 @@ const MOB_MODELS = {
     L([0.08, 0.08, 0.04], [-0.26, 0.44, -0.89], [120, 20, 20], { hp: 1 }), L([0.08, 0.08, 0.04], [0.26, 0.44, -0.89], [120, 20, 20], { hp: 1 }),
     L([1.7, 0.09, 0.09], [0, 0.45, -0.2], [35, 30, 28], { leg: 1 }), L([1.7, 0.09, 0.09], [0, 0.4, 0.1], [35, 30, 28], { leg: 1 }),
     L([1.7, 0.09, 0.09], [0, 0.45, 0.4], [35, 30, 28], { leg: 1 }), L([1.7, 0.09, 0.09], [0, 0.4, 0.65], [35, 30, 28], { leg: 1 }),
+  ],
+  player: [
+    L([0.5, 0.72, 0.28], [0, 1.16, 0], [70, 120, 180]),
+    L([0.48, 0.48, 0.48], [0, 1.76, 0], [214, 170, 130], { head: 1 }),
+    L([0.09, 0.07, 0.05], [-0.12, 1.82, -0.25], [40, 40, 90], { hp: 1 }), L([0.09, 0.07, 0.05], [0.12, 1.82, -0.25], [40, 40, 90], { hp: 1 }),
+    L([0.34, 0.16, 0.5], [0, 1.95, 0], [90, 60, 40], { hp: 1 }),
+    L([0.22, 0.7, 0.22], [-0.36, 1.45, 0], [214, 170, 130], { arm: 1 }), L([0.22, 0.7, 0.22], [0.36, 1.45, 0], [214, 170, 130], { arm: 1 }),
+    L([0.23, 0.8, 0.23], [-0.13, 0.8, 0], [60, 70, 140], { leg: 1 }), L([0.23, 0.8, 0.23], [0.13, 0.8, 0], [60, 70, 140], { leg: 1 }),
+  ],
+  wolf: [
+    L([0.4, 0.4, 0.75], [0, 0.55, 0.05], [186, 186, 190]),
+    L([0.34, 0.34, 0.34], [0, 0.72, -0.5], [200, 200, 204], { head: 1 }),
+    L([0.16, 0.14, 0.14], [0, 0.62, -0.72], [150, 150, 155], { hp: 1 }),
+    L([0.05, 0.05, 0.03], [-0.09, 0.78, -0.66], [20, 15, 15], { hp: 1 }), L([0.05, 0.05, 0.03], [0.09, 0.78, -0.66], [20, 15, 15], { hp: 1 }),
+    L([0.09, 0.12, 0.06], [-0.11, 0.94, -0.45], [170, 170, 175], { hp: 1 }), L([0.09, 0.12, 0.06], [0.11, 0.94, -0.45], [170, 170, 175], { hp: 1 }),
+    L([0.1, 0.1, 0.42], [0, 0.62, 0.55], [176, 176, 182]),
+    L([0.12, 0.42, 0.12], [-0.13, 0.36, -0.25], [170, 170, 176], { leg: 1 }), L([0.12, 0.42, 0.12], [0.13, 0.36, -0.25], [170, 170, 176], { leg: 1 }),
+    L([0.12, 0.42, 0.12], [-0.13, 0.36, 0.28], [170, 170, 176], { leg: 1 }), L([0.12, 0.42, 0.12], [0.13, 0.36, 0.28], [170, 170, 176], { leg: 1 }),
   ],
   creeper: [
     L([0.5, 0.85, 0.3], [0, 0.9, 0], [96, 168, 84]),
@@ -311,6 +331,17 @@ export class EntityManager {
     return def.drops.map(d => ({ ...d }));
   }
 
+  tameMob(mob) {
+    mob.tamed = true;
+    mob.state = 'idle';
+    this.addParticles(mob.pos.x, mob.pos.y + mob.h, mob.pos.z, [1, 0.4, 0.6], 10, 1.5);
+    this.audio.play('pop', mob.pos);
+    // red collar
+    const collar = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.1, 0.38), new THREE.MeshBasicMaterial({ color: 0xc03030 }));
+    collar.position.set(0, -0.14, 0.02);
+    if (mob.model.head) mob.model.head.add(collar);
+  }
+
   hurtMob(mob, dmg, knockDir, player, isPlayerHit = false) {
     if (mob.hp <= 0) return;
     mob.hp -= dmg;
@@ -335,6 +366,7 @@ export class EntityManager {
   }
 
   trySpawns(player, dayFactor) {
+    if (this.puppet) return;
     const w = this.world;
     // hostiles
     if (this.countMobs(true) < 14) {
@@ -369,7 +401,8 @@ export class EntityManager {
       if (w.chunkAt(x, z) && w.chunkAt(x, z).lit) {
         const y = w.surfaceY(x, z);
         if (w.getBlock(x, y, z) === 2 && y + 3 < H) {
-          const type = PASSIVES[Math.random() * PASSIVES.length | 0];
+          let type = PASSIVES[Math.random() * PASSIVES.length | 0];
+          if (type === 'wolf' && !WOLF_BIOMES.includes(w.biomeAt(x, z))) type = 'sheep';
           const n = 2 + (Math.random() * 2 | 0);
           for (let i = 0; i < n; i++)
             this.spawnMob(type, x + 0.5 + (Math.random() - 0.5) * 3, y + 1, z + 0.5 + (Math.random() - 0.5) * 3,
@@ -396,8 +429,8 @@ export class EntityManager {
       m.attackTimer = Math.max(0, m.attackTimer - dt);
 
       const hostile = HOSTILES.includes(m.type);
-      const angry = hostile && !player.dead && distP < 18 &&
-        (!m.def.neutralDay || m.aggro || dayFactor < 0.4);
+      const angry = hostile && !player.dead && player.gamemode !== 'spectator' && player.gamemode !== 'creative' &&
+        distP < 18 && (!m.def.neutralDay || m.aggro || dayFactor < 0.4);
       const yawToPlayer = Math.atan2(-(player.pos.x - m.pos.x), -(player.pos.z - m.pos.z));
       m.age += dt;
 
@@ -441,6 +474,28 @@ export class EntityManager {
           player.vel.x += (player.pos.x - m.pos.x) / kd * 7;
           player.vel.z += (player.pos.z - m.pos.z) / kd * 7;
           player.vel.y = Math.max(player.vel.y, 4);
+        }
+      } else if (m.tamed) {
+        // loyal wolf: follow owner, pounce hostiles near them
+        let target = null, td = 6;
+        for (const o of this.mobs) {
+          if (o.dead || !HOSTILES.includes(o.type)) continue;
+          const od = Math.hypot(o.pos.x - player.pos.x, o.pos.z - player.pos.z);
+          if (od < td) { td = od; target = o; }
+        }
+        if (target) {
+          m.targetYaw = Math.atan2(-(target.pos.x - m.pos.x), -(target.pos.z - m.pos.z));
+          moveSpeed = m.def.speed * 1.2;
+          const tdm = Math.hypot(target.pos.x - m.pos.x, target.pos.z - m.pos.z);
+          if (tdm < 1.4 && m.attackTimer <= 0) {
+            m.attackTimer = 0.9;
+            this.hurtMob(target, m.def.dmg, { x: (target.pos.x - m.pos.x) / (tdm + 0.01), z: (target.pos.z - m.pos.z) / (tdm + 0.01) }, player, true);
+          }
+        } else if (distP > 18) {
+          m.pos = { x: player.pos.x + 1.5, y: player.pos.y + 0.5, z: player.pos.z + 1.5 };
+        } else if (distP > 3.2) {
+          m.targetYaw = yawToPlayer;
+          moveSpeed = m.def.speed * (distP > 8 ? 1.3 : 0.7);
         }
       } else if (m.state === 'flee' && m.stateTimer > 0) {
         m.targetYaw = Math.atan2(-(m.pos.x - (m.fleeFrom?.x ?? player.pos.x)), -(m.pos.z - (m.fleeFrom?.z ?? player.pos.z))) + Math.PI;
@@ -687,14 +742,80 @@ export class EntityManager {
   }
 
   serialize() {
-    return this.mobs.map(m => ({ type: m.type, x: m.pos.x, y: m.pos.y, z: m.pos.z, hp: m.hp }));
+    return this.mobs.map(m => ({ type: m.type, x: m.pos.x, y: m.pos.y, z: m.pos.z, hp: m.hp, tamed: !!m.tamed, baby: !!m.baby }));
   }
   deserialize(list) {
     for (const s of list || []) {
-      const m = this.spawnMob(s.type, s.x, s.y, s.z);
+      const m = this.spawnMob(s.type, s.x, s.y, s.z, { baby: s.baby });
       m.hp = s.hp;
+      if (s.tamed) this.tameMob(m);
     }
   }
+  // ---------------- multiplayer helpers ----------------
+  createAvatar() {
+    const model = buildMobModel('player');
+    this.scene.add(model.group);
+    return model;
+  }
+
+  applyMobSnapshot(list) {
+    // guest: puppet the host's mobs
+    for (let i = 0; i < list.length; i++) {
+      const s = list[i];
+      let m = this.mobs[i];
+      if (!m || m.type !== s.k) {
+        if (m) { this.scene.remove(m.model.group); }
+        m = {
+          type: s.k, def: MOB_TYPES[s.k], model: buildMobModel(s.k),
+          pos: { x: s.x, y: s.y, z: s.z }, vel: { x: 0, y: 0, z: 0 },
+          w: MOB_TYPES[s.k].w, h: MOB_TYPES[s.k].h, yaw: s.w, targetYaw: s.w,
+          hp: s.h, walkPhase: 0, hurtTimer: 0, net: true,
+        };
+        this.scene.add(m.model.group);
+        this.mobs[i] = m;
+      }
+      m.netTarget = { x: s.x, y: s.y, z: s.z, yaw: s.w };
+      m.hp = s.h;
+      if (s.f) m.hurtTimer = 0.3;
+    }
+    while (this.mobs.length > list.length) {
+      const m = this.mobs.pop();
+      this.scene.remove(m.model.group);
+    }
+  }
+
+  updatePuppets(dt, world, dayFactor) {
+    for (const m of this.mobs) {
+      if (!m.netTarget) continue;
+      const t = Math.min(1, 8 * dt);
+      const prevX = m.pos.x, prevZ = m.pos.z;
+      m.pos.x += (m.netTarget.x - m.pos.x) * t;
+      m.pos.y += (m.netTarget.y - m.pos.y) * t;
+      m.pos.z += (m.netTarget.z - m.pos.z) * t;
+      let dy = m.netTarget.yaw - m.yaw;
+      while (dy > Math.PI) dy -= Math.PI * 2;
+      while (dy < -Math.PI) dy += Math.PI * 2;
+      m.yaw += dy * t;
+      m.hurtTimer = Math.max(0, m.hurtTimer - dt);
+      const g = m.model.group;
+      g.position.set(m.pos.x, m.pos.y, m.pos.z);
+      g.rotation.y = m.yaw;
+      const sp = Math.hypot(m.pos.x - prevX, m.pos.z - prevZ) / Math.max(dt, 1e-4);
+      m.walkPhase += sp * dt * 3.2;
+      m.model.legs.forEach((leg, i) => {
+        if (m.type === 'spider') leg.rotation.z = Math.sin(m.walkPhase + i * 1.7) * 0.25;
+        else leg.rotation.x = Math.sin(m.walkPhase + (i % 2) * Math.PI) * clamp(sp, 0, 1.4) * 0.7;
+      });
+      const ll = Math.max(world.getLight(Math.floor(m.pos.x), Math.floor(m.pos.y + 1), Math.floor(m.pos.z)),
+        world.getSky(Math.floor(m.pos.x), Math.floor(m.pos.y + 1), Math.floor(m.pos.z)) * dayFactor);
+      const br = 0.25 + 0.75 * (ll / 15);
+      for (const mat of m.model.mats) mat.color.setRGB(
+        m.hurtTimer > 0 ? Math.min(1, br + 0.6) : br,
+        m.hurtTimer > 0 ? br * 0.4 : br,
+        m.hurtTimer > 0 ? br * 0.4 : br);
+    }
+  }
+
   clear() {
     for (const m of this.mobs) this.scene.remove(m.model.group);
     for (const d of this.drops) this.scene.remove(d.mesh);

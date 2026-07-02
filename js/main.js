@@ -1,10 +1,10 @@
 // ---------------------------------------------------------------
 // main.js — Crafter Mine game orchestrator
 // ---------------------------------------------------------------
-import * as THREE from 'three';
+import * as THREE from './vendor/three.module.min.js';
 import { World, CHUNK, H, SEA, BIOME_NAMES, GRASSY_BIOMES, LEAFY_BIOMES } from './world.js';
 import { meshChunk } from './mesher.js';
-import { BLOCKS, ITEMS, defOf, AIR, SMELTING, FUELS } from './blocks.js';
+import { BLOCKS, ITEMS, defOf, AIR, SMELTING, FUELS, SAPLINGS } from './blocks.js';
 import { buildAtlas, TILE, ATLAS } from './textures.js';
 import { Player, Input, raycast, collideEntity, EYE } from './player.js';
 import { EntityManager } from './entities.js';
@@ -13,7 +13,8 @@ import { GameAudio } from './audio.js';
 import { saveWorld, loadMeta, loadChunks, clearSave } from './save.js';
 import { clamp, lerp } from './util.js';
 import { loadUserArt, userCrosshair, userSlotTile } from './assets.js';
-import { PostFX } from './post.js';
+import { PostFX, PRESETS } from './post.js';
+import { Net } from './net.js';
 import { TouchControls } from './mobile.js';
 
 const $ = id => document.getElementById(id);
@@ -24,10 +25,21 @@ await loadUserArt();
 
 // ---------------- settings ----------------
 const SETTINGS = Object.assign(
-  { rd: IS_TOUCH ? 4 : 5, fov: 75, sens: 8, vol: 70, shader: IS_TOUCH ? 0 : 1 },
+  { rd: IS_TOUCH ? 3 : 5, fov: 75, sens: 8, vol: 70, shader: IS_TOUCH ? 0 : 1 },
   JSON.parse(localStorage.getItem('cm_settings') || '{}'));
 window.SETTINGS = SETTINGS;
 function saveSettings() { localStorage.setItem('cm_settings', JSON.stringify(SETTINGS)); }
+
+// title screen: splash + dirt background + gamemode cycle
+const SPLASHES = ['Now with wolves!', 'Hand-drawn HUD!', 'Cozy shaders!', 'Punch a tree!', 'Cherry blossoms!',
+  'Multiplayer co-op!', 'Also plays on phones!', 'Fireflies at dusk!', 'Bake some bread!', '100% original pixels!'];
+$('splash').textContent = SPLASHES[Math.random() * SPLASHES.length | 0];
+const GAMEMODES = ['survival', 'creative', 'spectator'];
+let gmIdx = 0;
+$('btn-gamemode').addEventListener('click', () => {
+  gmIdx = (gmIdx + 1) % 3;
+  $('btn-gamemode').textContent = 'Game Mode: ' + GAMEMODES[gmIdx][0].toUpperCase() + GAMEMODES[gmIdx].slice(1);
+});
 
 // apply user crosshair + hotbar slot art
 {
@@ -43,7 +55,7 @@ function saveSettings() { localStorage.setItem('cm_settings', JSON.stringify(SET
 
 // ---------------- three.js setup ----------------
 const renderer = new THREE.WebGLRenderer({ antialias: false });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, IS_TOUCH ? 1.5 : 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 $('game').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
@@ -58,6 +70,18 @@ window.addEventListener('resize', () => {
 
 // atlas texture
 const atlas = buildAtlas();
+{ // dirt-tile menu background, Minecraft style
+  const t = atlas.tiles.get('dirt');
+  const cv = document.createElement('canvas'); cv.width = cv.height = TILE;
+  cv.getContext('2d').drawImage(atlas.canvas, t[0] * TILE, t[1] * TILE, TILE, TILE, 0, 0, TILE, TILE);
+  const url = cv.toDataURL();
+  for (const id of ['menu', 'mpscreen']) {
+    const el = $(id);
+    el.classList.add('dirtbg');
+    el.style.backgroundImage = `url(${url})`;
+    el.style.backgroundSize = '64px 64px';
+  }
+}
 const atlasTex = new THREE.CanvasTexture(atlas.canvas);
 atlasTex.magFilter = THREE.NearestFilter;
 atlasTex.minFilter = THREE.NearestFilter;
@@ -182,6 +206,7 @@ let world = null, player = null, entities = null, ui = null;
 const audio = new GameAudio();
 audio.setVolume(SETTINGS.vol / 100);
 const input = new Input(renderer.domElement);
+const net = new Net();
 const touch = new TouchControls(input, {
   pause: () => { if (state === 'playing' && !paused) showPause(true); },
   inventory: () => {
@@ -447,6 +472,12 @@ function attackMob(mob, dir) {
   const tool = held && ITEMS[held.id] ? ITEMS[held.id].tool : null;
   let dmg = tool ? tool.dmg : 1;
   if (!player.onGround && player.vel.y < 0) dmg *= 1.5; // crit
+  if (mob.net) { // guest: host owns the mobs
+    net.broadcast({ t: 'hit', i: entities.mobs.indexOf(mob), dmg });
+    mob.hurtTimer = 0.3;
+    player.exhaustion += 0.1;
+    return;
+  }
   const kd = Math.hypot(dir.x, dir.z) + 0.001;
   entities.hurtMob(mob, dmg, { x: dir.x / kd, z: dir.z / kd }, player, true);
   if (tool) { if (player.damageTool(player.sel)) audio.play('break_tool'); }
@@ -456,6 +487,7 @@ function attackMob(mob, dir) {
 function breakTimeFor(id) {
   const def = BLOCKS[id];
   if (def.hard < 0) return Infinity;
+  if (player.gamemode === 'creative') return 0.05;
   const held = player.held();
   const tool = held && ITEMS[held.id] ? ITEMS[held.id].tool : null;
   const rightTool = tool && def.tool && tool.type === def.tool;
@@ -511,7 +543,7 @@ function handleMining(dt) {
     world.setBlock(ray.x, ray.y, ray.z, AIR);
     entities.blockParticles(ray.x + 0.5, ray.y + 0.5, ray.z + 0.5, id);
     audio.digFor(BLOCKS[id].sound, { x: ray.x, y: ray.y, z: ray.z });
-    if (canHarvestBlock(id)) {
+    if (player.gamemode === 'survival' && canHarvestBlock(id)) {
       for (const d of entities.dropsOf(id)) {
         const drop = { ...d };
         if (drop.id === 27 || drop.id === 28) drop.id = 27;
@@ -520,7 +552,7 @@ function handleMining(dt) {
       if (ORE_XP[id]) player.addXP(ORE_XP[id]);
     }
     const held = player.held();
-    if (held && ITEMS[held.id] && ITEMS[held.id].tool) {
+    if (player.gamemode === 'survival' && held && ITEMS[held.id] && ITEMS[held.id].tool) {
       if (player.damageTool(player.sel)) audio.play('break_tool');
     }
     player.stats.mined++;
@@ -554,12 +586,24 @@ function handlePlacing(dt) {
   doUse(currentRay(), input.justMouse[2]);
 }
 
+function tryTame(mob) {
+  const held = player.held();
+  if (!held || !mob.def.tameable || mob.tamed) return false;
+  if (held.id !== 279 && ![271, 273, 275, 277].includes(held.id)) return false;
+  if (player.gamemode !== 'creative') { held.n--; if (held.n <= 0) player.inventory[player.sel] = null; }
+  if (Math.random() < 0.5) { entities.tameMob(mob); ui.toast('The wolf is your friend now!'); }
+  else entities.addParticles(mob.pos.x, mob.pos.y + mob.h, mob.pos.z, [0.6, 0.6, 0.6], 5, 1);
+  placeCooldown = 0.35;
+  return true;
+}
+
 function handleTap(tap) {
   // mobile quick tap: attack a mob, otherwise interact / place at the tapped spot
   if (placeCooldown > 0) return;
   const { origin, dir } = screenDir(tap.x, tap.y);
   const ray = rayFromScreen(tap.x, tap.y);
   const mob = entities.raycastMob(origin, dir, Math.min(3.5, ray ? ray.dist : 3.5));
+  if (mob && tryTame(mob)) return;
   if (mob && player.attackCooldown <= 0) { attackMob(mob, dir); return; }
   doUse(ray, true);
 }
@@ -567,9 +611,35 @@ function handleTap(tap) {
 function doUse(ray, just) {
   if (ray && just && !player.sneaking && tryInteract(ray)) { placeCooldown = 0.25; return; }
 
+  // feed / tame a mob you're looking at
+  if (just) {
+    const mobT = entities.raycastMob(player.eyePos(), player.lookDir(), 3);
+    if (mobT && tryTame(mobT)) return;
+  }
+
   const held = player.held();
   if (!held) return;
   const def = defOf(held.id);
+  const creative = player.gamemode === 'creative';
+  const consume = () => { if (!creative) { held.n--; if (held.n <= 0) player.inventory[player.sel] = null; } };
+
+  // hoe: till grass/dirt into farmland
+  if (def.tool && def.tool.type === 'hoe' && ray && (ray.id === 2 || ray.id === 3) &&
+      world.getBlock(ray.x, ray.y + 1, ray.z) === AIR) {
+    world.setBlock(ray.x, ray.y, ray.z, 75);
+    audio.play('dig_gravel', ray);
+    if (!creative && player.damageTool(player.sel)) audio.play('break_tool');
+    placeCooldown = 0.25;
+    return;
+  }
+  // plant seeds on farmland
+  if (held.id === 285 && ray && ray.id === 75 && world.getBlock(ray.x, ray.y + 1, ray.z) === AIR) {
+    world.setBlock(ray.x, ray.y + 1, ray.z, 76);
+    consume();
+    audio.play('dig_grass', ray);
+    placeCooldown = 0.25;
+    return;
+  }
 
   // eat
   if (def.food && player.hunger < 20 && player.eatCooldown <= 0) {
@@ -610,10 +680,11 @@ function doUse(ray, just) {
       if (overlaps(player, player.h)) return;
       for (const m of entities.mobs) if (overlaps(m, m.h)) return;
     }
-    // crosses need solid ground (ladder excepted)
+    // crosses need solid ground (ladder excepted); saplings need soil
     if (bDef.cross && !bDef.climbable && !BLOCKS[world.getBlock(px, py - 1, pz)].solid) return;
+    if (SAPLINGS.includes(held.id) && ![2, 3, 34].includes(world.getBlock(px, py - 1, pz))) return;
     world.setBlock(px, py, pz, held.id);
-    held.n--; if (held.n <= 0) player.inventory[player.sel] = null;
+    consume();
     audio.play('place', { x: px, y: py, z: pz });
     player.stats.placed++;
     placeCooldown = 0.22;
@@ -649,6 +720,33 @@ function dropAllInventory() {
   }
 }
 
+// ---------------- random ticks: crops grow, saplings become trees ----------------
+let rtickTimer = 0;
+function randomTicks(dt) {
+  rtickTimer -= dt;
+  if (rtickTimer > 0) return;
+  rtickTimer = 0.5;
+  if (net.active && !net.isHost) return; // host authority
+  const df = dayFactorAt(world.time);
+  for (let i = 0; i < 30; i++) {
+    const bx = Math.floor(player.pos.x) + ((Math.random() * 96 | 0) - 48);
+    const bz = Math.floor(player.pos.z) + ((Math.random() * 96 | 0) - 48);
+    const by = Math.random() * H | 0;
+    const id = world.getBlock(bx, by, bz);
+    if (id === 76 || id === 77) {
+      const light = Math.max(world.getLight(bx, by, bz), world.getSky(bx, by, bz) * df);
+      if (light >= 9 && Math.random() < 0.4) world.setBlock(bx, by, bz, id + 1);
+    } else if (SAPLINGS.includes(id) && Math.random() < 0.15) {
+      const light = Math.max(world.getLight(bx, by, bz), world.getSky(bx, by, bz) * df);
+      if (light >= 9) {
+        const sp = SAPLINGS.indexOf(id);
+        world.setBlock(bx, by, bz, AIR);
+        world.growTree(bx, by, bz, sp);
+      }
+    }
+  }
+}
+
 // ---------------- pointer lock / screens ----------------
 function requestLock() { if (!IS_TOUCH) renderer.domElement.requestPointerLock(); }
 function exitLock() { if (document.pointerLockElement) document.exitPointerLock(); }
@@ -661,6 +759,7 @@ document.addEventListener('pointerlockchange', () => {
 
 function showPause(on) {
   paused = on;
+  if (on) $('pause').querySelector('h2').textContent = 'Game Paused' + (window.ROOMCODE ? ' · Room code: ' + window.ROOMCODE : '');
   $('pause').classList.toggle('hidden', !on);
   if (!on) requestLock();
 }
@@ -692,6 +791,47 @@ $('btn-new').addEventListener('click', async () => {
   const seedStr = $('seedinput').value.trim() || String(Math.floor(Math.random() * 1e9));
   await clearSave();
   startGame(seedStr, null);
+});
+$('btn-mp').addEventListener('click', () => {
+  $('menu').classList.add('hidden');
+  $('mpscreen').classList.remove('hidden');
+});
+$('btn-mp-back').addEventListener('click', () => {
+  $('mpscreen').classList.add('hidden');
+  $('menu').classList.remove('hidden');
+});
+$('btn-host').addEventListener('click', async () => {
+  audio.ensure();
+  net.onStatus = t => { $('mpstatus').textContent = t; if (ui) ui.toast(t); };
+  try {
+    const code = await net.host(() => {
+      const chunks = [];
+      for (const [key, c] of world.chunks) if (c.modified) world.savedChunks.set(key, c.blocks.slice());
+      for (const [key, blocks] of world.savedChunks) chunks.push([key, blocks]);
+      return {
+        seed: world.seedStr, time: world.time, chunks,
+        blockEntities: [...world.blockEntities.entries()],
+      };
+    });
+    $('hostinfo').classList.remove('hidden');
+    $('roomcode').textContent = code;
+    window.ROOMCODE = code;
+  } catch (e) { return; }
+  // start hosting on the saved world if present, else a fresh one
+  $('mpscreen').classList.add('hidden');
+  if (savedMeta) startGame(savedMeta.seed, savedMeta);
+  else { await clearSave(); startGame(String(Math.floor(Math.random() * 1e9)), null); }
+});
+$('btn-join').addEventListener('click', async () => {
+  audio.ensure();
+  const code = $('joincode').value.trim();
+  if (code.length < 4) { $('mpstatus').textContent = 'Type the room code first.'; return; }
+  net.onStatus = t => { $('mpstatus').textContent = t; if (ui) ui.toast(t); };
+  try {
+    const init = await net.join(code);
+    $('mpscreen').classList.add('hidden');
+    startGame(init.seed, null, init);
+  } catch (e) { }
 });
 $('btn-continue').addEventListener('click', async () => {
   audio.ensure();
@@ -731,7 +871,7 @@ function bindSetting(id, key, valId, fmt, onChange) {
     if (onChange) onChange();
   });
 }
-bindSetting('set-shader', 'shader', 'shader-val', v => ['Off', 'Fancy', 'Ultra'][v]);
+bindSetting('set-shader', 'shader', 'shader-val', v => PRESETS[v].name);
 bindSetting('set-rd', 'rd', 'rd-val', v => v + ' chunks');
 bindSetting('set-fov', 'fov', 'fov-val', v => v + '°', () => { camera.fov = SETTINGS.fov; camera.updateProjectionMatrix(); });
 bindSetting('set-sens', 'sens', 'sens-val', v => String(v));
@@ -739,7 +879,7 @@ bindSetting('set-vol', 'vol', 'vol-val', v => v + '%', () => audio.setVolume(SET
 
 // ---------------- start game ----------------
 let activeMeta = null;
-async function startGame(seedStr, meta) {
+async function startGame(seedStr, meta, netInit = null) {
   $('menu').classList.add('hidden');
   $('loading').classList.remove('hidden');
   activeMeta = meta;
@@ -754,8 +894,27 @@ async function startGame(seedStr, meta) {
     entities.dropItem(eye.x + dir.x * 0.4, eye.y - 0.3, eye.z + dir.z * 0.4, stack,
       { x: dir.x * 5, y: 2, z: dir.z * 5 });
   };
+  player.gamemode = (meta && meta.gamemode) || GAMEMODES[gmIdx];
   player.onDamaged = (amt, opts) => { if (!opts.silentTick) audio.play('hurt', player.pos); };
   player.onLevelUp = lvl => { audio.play('level'); ui.toast('Level up! Now level ' + lvl); };
+
+  // multiplayer hooks
+  net.scene = scene;
+  world.onBlockSet = (x, y, z, id) => net.sendBlock(x, y, z, id);
+  net.onBlock = (x, y, z, id) => {
+    net.applyingRemote = true;
+    world.setBlock(x, y, z, id);
+    net.applyingRemote = false;
+  };
+  net.onMobs = snap => entities.applyMobSnapshot(snap);
+  net.onHit = (i, dmg) => { const m = entities.mobs[i]; if (m) entities.hurtMob(m, dmg, null, player, false); };
+  net.onTime = v => { world.time = v; };
+  if (netInit) {
+    entities.puppet = true;
+    world.time = netInit.time || 6000;
+    for (const [k, blocks] of netInit.chunks || []) world.savedChunks.set(k, new Uint8Array(blocks));
+    for (const [k, v] of netInit.blockEntities || []) world.blockEntities.set(k, v);
+  }
   entities.onMobKilled = (mob, byPlayer) => { if (byPlayer) player.addXP(mob.def.passive ? 1 : 5); };
   window.GAME = { get world() { return world; }, get player() { return player; }, get entities() { return entities; }, get ui() { return ui; } };
 
@@ -823,7 +982,7 @@ function finishLoading() {
 }
 
 window.addEventListener('beforeunload', () => {
-  if (state === 'playing') saveWorld(world, player, entities);
+  if (state === 'playing' && (!net.active || net.isHost)) saveWorld(world, player, entities);
 });
 
 // ---------------- footsteps ----------------
@@ -866,9 +1025,10 @@ function frame(t) {
   if (fpsAcc > 0.5) { fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; }
 
   if (state === 'loading') {
-    chunkPipeline(30);
+    chunkPipeline(IS_TOUCH ? 24 : 40);
     const f = loadedFraction();
     $('loadfill').style.width = (f * 100).toFixed(0) + '%';
+    $('loadpct').textContent = (f * 100).toFixed(0) + '%';
     if (f >= 1) finishLoading();
     input.endFrame();
     return;
@@ -887,7 +1047,7 @@ function frame(t) {
     const df = dayFactorAt(world.time);
 
     player.update(input, dt, uiOpen || !controlsActive);
-    if (controlsActive && !uiOpen) {
+    if (controlsActive && !uiOpen && player.gamemode !== 'spectator') {
       handleMining(dt);
       handlePlacing(dt);
       const tap = touch.consumeTap();
@@ -898,7 +1058,30 @@ function frame(t) {
       mining = null; crackMesh.visible = false; outline.visible = false;
     }
 
-    entities.update(dt, player, df);
+    if (entities.puppet) {
+      entities.updatePuppets(dt, world, df);
+      // guests still simulate their own drops/arrows/particles via a light pass
+      const mobsBackup = entities.mobs; entities.mobs = [];
+      entities.update(dt, player, df);
+      entities.mobs = mobsBackup;
+    } else {
+      entities.update(dt, player, df);
+    }
+    randomTicks(dt);
+    net.tick(dt, player, entities, world);
+    // remote player avatars
+    for (const [pid, rp] of net.remotePlayers) {
+      if (rp.x === undefined) continue;
+      if (!rp.avatar) rp.avatar = entities.createAvatar();
+      const g = rp.avatar.group;
+      g.position.lerp(new THREE.Vector3(rp.x, rp.y, rp.z), Math.min(1, 10 * dt));
+      g.rotation.y = rp.yaw || 0;
+      if (rp.avatar.head) rp.avatar.head.rotation.x = -(rp.pitch || 0);
+      const lx = Math.floor(g.position.x), ly = Math.floor(g.position.y + 1), lz = Math.floor(g.position.z);
+      const ll = Math.max(world.getLight(lx, ly, lz), world.getSky(lx, ly, lz) * df);
+      const br = 0.25 + 0.75 * (ll / 15);
+      for (const mat of rp.avatar.mats) mat.color.setRGB(br, br, br);
+    }
     tickFurnaces(dt);
     chunkPipeline(8);
     footsteps(dt);
@@ -942,7 +1125,7 @@ function frame(t) {
     autosaveTimer -= dt;
     if (autosaveTimer <= 0) {
       autosaveTimer = 30;
-      saveWorld(world, player, entities);
+      if (!net.active || net.isHost) saveWorld(world, player, entities);
     }
   }
 
@@ -962,7 +1145,7 @@ function frame(t) {
   ui.updateHUD(dt);
   updateDebug();
   sharedUniforms.uTime.value = gameTime;
-  sharedUniforms.uWaveAmp.value = SETTINGS.shader === 2 ? 1 : 0;
+  sharedUniforms.uWaveAmp.value = PRESETS[SETTINGS.shader] ? PRESETS[SETTINGS.shader].waves : 0;
   postFX.mode = SETTINGS.shader;
   postFX.render(scene, camera, { underwater: player.headInWater, time: gameTime, dusk: lastDusk });
   input.endFrame();

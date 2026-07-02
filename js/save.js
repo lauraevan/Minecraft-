@@ -35,6 +35,7 @@ export async function saveWorld(world, player, entities) {
     meta.put({
       seed: world.seedStr,
       time: world.time,
+      gamemode: player.gamemode,
       spawn: player.spawn,
       chunkKeys: [...world.savedChunks.keys()],
       player: {

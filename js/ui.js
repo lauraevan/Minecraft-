@@ -1,7 +1,16 @@
 // ---------------------------------------------------------------
 // ui.js — HUD + inventory / crafting / furnace / chest screens
 // ---------------------------------------------------------------
-import { BLOCKS, ITEMS, defOf, matchRecipe } from './blocks.js';
+import { BLOCKS, ITEMS, defOf, matchRecipe, AIR } from './blocks.js';
+
+// creative palette: every placeable block + obtainable item
+const PALETTE = [];
+for (let id = 1; id < 256; id++) {
+  if (!BLOCKS[id]) continue;
+  if ([28, 76, 77, 78].includes(id)) continue; // technical states
+  PALETTE.push(id);
+}
+for (const id of Object.keys(ITEMS)) PALETTE.push(+id);
 import { iconFor, hudIcon } from './textures.js';
 import { userHudIcon, userXpBar } from './assets.js';
 
@@ -82,6 +91,11 @@ export class UI {
       hb[i].classList.toggle('sel', i === p.sel);
       this.renderSlotEl(hb[i], p.inventory[i]);
     }
+    // gamemode HUD visibility
+    $('statusbars').style.display = p.gamemode === 'survival' ? '' : 'none';
+    $('xpbar').style.display = p.gamemode === 'survival' ? '' : 'none';
+    $('hotbar').style.display = p.gamemode === 'spectator' ? 'none' : '';
+    if (p.gamemode !== 'survival') { /* bars hidden; skip their updates */ }
     if (p.sel !== this.lastSel) {
       this.lastSel = p.sel;
       const s = p.inventory[p.sel];
@@ -197,7 +211,17 @@ export class UI {
       return d;
     };
 
-    if (this.screen === 'inventory' || this.screen === 'table') {
+    if (this.screen === 'inventory' && this.player.gamemode === 'creative') {
+      const wrap = document.createElement('div');
+      const lbl = document.createElement('div'); lbl.className = 'invlabel'; lbl.textContent = 'Creative — pick anything (click with item to trash)'; wrap.appendChild(lbl);
+      const grid = document.createElement('div'); grid.className = 'grid palgrid';
+      PALETTE.forEach((id, i) => {
+        const el = mkSlot('pal', i, grid);
+        el.dataset.pid = id;
+      });
+      wrap.appendChild(grid);
+      upper.appendChild(wrap);
+    } else if (this.screen === 'inventory' || this.screen === 'table') {
       if (this.screen === 'inventory') {
         const armorCol = document.createElement('div');
         armorCol.style.display = 'flex'; armorCol.style.flexDirection = 'column'; armorCol.style.gap = '2px';
@@ -245,6 +269,7 @@ export class UI {
     const p = this.player;
     switch (zone) {
       case 'inv': return p.inventory[idx];
+      case 'pal': { const id = PALETTE[idx]; return id ? { id, n: 1 } : null; }
       case 'armor': return p.armor[idx];
       case 'craft': return this.craft[idx];
       case 'craftOut': return this.craftResult();
@@ -285,6 +310,22 @@ export class UI {
   clickSlot(zone, idx, button, shift) {
     const p = this.player;
     this.audio.play('click');
+
+    if (zone === 'pal') {
+      const id = PALETTE[idx];
+      if (this.cursor && this.cursor.id !== id) this.cursor = null;          // trash
+      else if (this.cursor && this.cursor.id === id) this.cursor.n = Math.min(this.cursor.n + (button === 2 ? 1 : 16), defOf(id).stack ?? 64);
+      else {
+        const def = defOf(id);
+        this.cursor = { id, n: button === 2 ? 1 : (def.stack ?? 64) };
+        if (def.tool) this.cursor = { id, n: 1, dur: def.tool.dur };
+        if (def.armor) this.cursor = { id, n: 1, dur: def.armor.dur };
+      }
+      if (shift && !this.cursor) {}
+      if (shift) { const st = this.cursor; this.cursor = null; if (st) p.addItem(st); }
+      this.refresh();
+      return;
+    }
 
     // ---- output slots ----
     if (zone === 'craftOut') {

@@ -1,10 +1,8 @@
 // ---------------------------------------------------------------
 // post.js — premium shader pipeline (custom post-processing)
-//   mode 0: off (direct render)
-//   mode 1: Fancy  — color grade, warmth, vignette
-//   mode 2: Ultra  — Fancy + bloom (bright pass + separable blur)
+// Presets: Off / Fancy / Cozy / Ultra / Cinematic
 // ---------------------------------------------------------------
-import * as THREE from 'three';
+import * as THREE from './vendor/three.module.min.js';
 
 const QUAD_VERT = `
 varying vec2 vUv;
@@ -47,9 +45,11 @@ uniform float uWarm;
 uniform float uVig;
 uniform float uUnderwater;
 uniform float uTime;
+uniform float uBox;
 varying vec2 vUv;
 void main() {
   vec2 uv = vUv;
+  if (uBox > 0.5 && (uv.y < 0.075 || uv.y > 0.925)) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
   if (uUnderwater > 0.5) {
     uv.x += sin(uv.y * 22.0 + uTime * 1.8) * 0.004;
     uv.y += cos(uv.x * 18.0 + uTime * 1.5) * 0.004;
@@ -65,6 +65,15 @@ void main() {
   c *= 1.0 - uVig * smoothstep(0.38, 0.86, d);
   gl_FragColor = vec4(c, 1.0);
 }`;
+
+// per-preset look: saturation, contrast, warmth, vignette, bloom, waves, letterbox
+export const PRESETS = [
+  { name: 'Off',       bloom: 0,    waves: 0,   sat: 1,    con: 1,    warm: 0,    vig: 0,    box: 0 },
+  { name: 'Fancy',     bloom: 0,    waves: 0,   sat: 1.1,  con: 1.05, warm: 0.22, vig: 0.3,  box: 0 },
+  { name: 'Cozy',      bloom: 0.55, waves: 0.7, sat: 0.96, con: 1.02, warm: 0.65, vig: 0.42, box: 0 },
+  { name: 'Ultra',     bloom: 0.85, waves: 1,   sat: 1.16, con: 1.07, warm: 0.22, vig: 0.4,  box: 0 },
+  { name: 'Cinematic', bloom: 0.9,  waves: 1,   sat: 1.2,  con: 1.14, warm: 0.35, vig: 0.55, box: 1 },
+];
 
 export class PostFX {
   constructor(renderer) {
@@ -92,7 +101,7 @@ export class PostFX {
       uniforms: {
         tScene: { value: null }, tBloom: { value: null },
         uBloom: { value: 0 }, uSat: { value: 1.12 }, uContrast: { value: 1.05 },
-        uWarm: { value: 0.3 }, uVig: { value: 0.35 }, uUnderwater: { value: 0 }, uTime: { value: 0 },
+        uWarm: { value: 0.3 }, uVig: { value: 0.35 }, uUnderwater: { value: 0 }, uTime: { value: 0 }, uBox: { value: 0 },
       },
       vertexShader: QUAD_VERT, fragmentShader: COMPOSITE_FRAG, depthTest: false, depthWrite: false,
     });
@@ -118,8 +127,9 @@ export class PostFX {
     r.setRenderTarget(this.rtScene);
     r.render(scene, camera);
 
+    const preset = PRESETS[this.mode] || PRESETS[1];
     let bloomTex = this.black, bloomAmt = 0;
-    if (this.mode === 2) {
+    if (preset.bloom > 0) {
       this.quad.material = this.matBright;
       this.matBright.uniforms.tScene.value = this.rtScene.texture;
       r.setRenderTarget(this.rtA);
@@ -135,7 +145,7 @@ export class PostFX {
       r.setRenderTarget(this.rtA);
       r.render(this.quadScene, this.quadCam);
       bloomTex = this.rtA.texture;
-      bloomAmt = 0.85;
+      bloomAmt = preset.bloom;
     }
 
     this.quad.material = this.matComposite;
@@ -145,9 +155,11 @@ export class PostFX {
     u.uBloom.value = bloomAmt;
     u.uUnderwater.value = opts.underwater ? 1 : 0;
     u.uTime.value = opts.time || 0;
-    u.uWarm.value = 0.22 + (opts.dusk || 0) * 0.55;
-    u.uSat.value = this.mode === 2 ? 1.16 : 1.1;
-    u.uVig.value = this.mode === 2 ? 0.4 : 0.3;
+    u.uWarm.value = preset.warm + (opts.dusk || 0) * 0.5;
+    u.uSat.value = preset.sat;
+    u.uContrast.value = preset.con;
+    u.uVig.value = preset.vig;
+    u.uBox.value = preset.box;
     r.setRenderTarget(null);
     r.render(this.quadScene, this.quadCam);
   }

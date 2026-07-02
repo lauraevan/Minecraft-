@@ -37,13 +37,13 @@ blk(7, 'bedrock', 'Bedrock', { hard: -1 });
 blk(8, 'water', 'Water', { hard: -1, solid: false, transparent: true, fluid: true, sound: 'none' });
 blk(9, 'lava', 'Lava', { hard: -1, solid: false, transparent: true, fluid: true, emit: 15, sound: 'none' });
 blk(10, 'oak_log', 'Oak Log', { hard: 2, tool: 'axe', tex: { top: 'oak_log_top', bottom: 'oak_log_top', side: 'oak_log' }, sound: 'wood' });
-blk(11, 'oak_leaves', 'Oak Leaves', { hard: 0.25, transparent: true, sound: 'grass', drops: r => r() < 0.06 ? [{ id: 270, n: 1 }] : [] });
+blk(11, 'oak_leaves', 'Oak Leaves', { hard: 0.25, transparent: true, sound: 'grass', drops: r => { const d = []; if (r() < 0.05) d.push({ id: 270, n: 1 }); if (r() < 0.06) d.push({ id: 79, n: 1 }); return d; } });
 blk(12, 'oak_planks', 'Oak Planks', { hard: 2, tool: 'axe', sound: 'wood' });
 blk(13, 'birch_log', 'Birch Log', { hard: 2, tool: 'axe', tex: { top: 'birch_log_top', bottom: 'birch_log_top', side: 'birch_log' }, sound: 'wood' });
-blk(14, 'birch_leaves', 'Birch Leaves', { hard: 0.25, transparent: true, sound: 'grass', drops: [] });
+blk(14, 'birch_leaves', 'Birch Leaves', { hard: 0.25, transparent: true, sound: 'grass', drops: r => r() < 0.06 ? [{ id: 80, n: 1 }] : [] });
 blk(15, 'birch_planks', 'Birch Planks', { hard: 2, tool: 'axe', sound: 'wood' });
 blk(16, 'spruce_log', 'Spruce Log', { hard: 2, tool: 'axe', tex: { top: 'spruce_log_top', bottom: 'spruce_log_top', side: 'spruce_log' }, sound: 'wood' });
-blk(17, 'spruce_leaves', 'Spruce Leaves', { hard: 0.25, transparent: true, sound: 'grass', drops: [] });
+blk(17, 'spruce_leaves', 'Spruce Leaves', { hard: 0.25, transparent: true, sound: 'grass', drops: r => r() < 0.06 ? [{ id: 81, n: 1 }] : [] });
 blk(18, 'spruce_planks', 'Spruce Planks', { hard: 2, tool: 'axe', sound: 'wood' });
 blk(19, 'coal_ore', 'Coal Ore', { hard: 3, tool: 'pickaxe', tier: 1, needsTool: true, drops: [{ id: 257, n: 1 }] });
 blk(20, 'iron_ore', 'Iron Ore', { hard: 3, tool: 'pickaxe', tier: 2, needsTool: true, drops: [{ id: 258, n: 1 }] });
@@ -64,7 +64,7 @@ blk(34, 'snow_grass', 'Snowy Grass', { hard: 0.6, tool: 'shovel', tex: { top: 's
 blk(35, 'snow_block', 'Snow Block', { hard: 0.3, tool: 'shovel', tex: { all: 'snow' }, sound: 'snow' });
 blk(36, 'ice', 'Ice', { hard: 0.6, tool: 'pickaxe', transparent: true, drops: [], sound: 'glass' });
 blk(37, 'cactus', 'Cactus', { hard: 0.5, tex: { top: 'cactus_top', bottom: 'cactus_top', side: 'cactus_side' }, sound: 'wool' });
-blk(38, 'tall_grass', 'Tall Grass', { hard: 0.05, solid: false, transparent: true, cross: true, drops: [], sound: 'grass' });
+blk(38, 'tall_grass', 'Tall Grass', { hard: 0.05, solid: false, transparent: true, cross: true, sound: 'grass', drops: r => r() < 0.35 ? [{ id: 285, n: 1 }] : [] });
 blk(39, 'poppy', 'Poppy', { hard: 0.05, solid: false, transparent: true, cross: true, sound: 'grass' });
 blk(40, 'dandelion', 'Dandelion', { hard: 0.05, solid: false, transparent: true, cross: true, sound: 'grass' });
 blk(41, 'brown_mushroom', 'Brown Mushroom', { hard: 0.05, solid: false, transparent: true, cross: true, sound: 'grass' });
@@ -80,21 +80,29 @@ blk(50, 'ladder', 'Ladder', { hard: 0.5, tool: 'axe', solid: false, transparent:
 const WOOL_COLORS = ['white', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'black'];
 WOOL_COLORS.forEach((c, i) => blk(51 + i, c + '_wool', c[0].toUpperCase() + c.slice(1) + ' Wool', { hard: 0.9, tex: { all: 'wool_' + c }, sound: 'wool' }));
 blk(59, 'jungle_log', 'Jungle Log', { hard: 2, tool: 'axe', tex: { top: 'jungle_log_top', bottom: 'jungle_log_top', side: 'jungle_log' }, sound: 'wood' });
-blk(60, 'jungle_leaves', 'Jungle Leaves', { hard: 0.25, transparent: true, sound: 'grass', drops: [] });
+blk(60, 'jungle_leaves', 'Jungle Leaves', { hard: 0.25, transparent: true, sound: 'grass', drops: r => r() < 0.05 ? [{ id: 82, n: 1 }] : [] });
 blk(61, 'jungle_planks', 'Jungle Planks', { hard: 2, tool: 'axe', sound: 'wood' });
 blk(62, 'bookshelf', 'Bookshelf', { hard: 1.5, tool: 'axe', tex: { top: 'oak_planks', bottom: 'oak_planks', side: 'bookshelf' }, sound: 'wood' });
 blk(63, 'granite', 'Granite', { hard: 1.5, tool: 'pickaxe', tier: 1, needsTool: true });
 blk(64, 'diorite', 'Diorite', { hard: 1.5, tool: 'pickaxe', tier: 1, needsTool: true });
 blk(65, 'cherry_log', 'Cherry Log', { hard: 2, tool: 'axe', tex: { top: 'cherry_log_top', bottom: 'cherry_log_top', side: 'cherry_log' }, sound: 'wood' });
-blk(66, 'cherry_leaves', 'Cherry Blossoms', { hard: 0.25, transparent: true, sound: 'grass', drops: [] });
+blk(66, 'cherry_leaves', 'Cherry Blossoms', { hard: 0.25, transparent: true, sound: 'grass', drops: r => r() < 0.06 ? [{ id: 83, n: 1 }] : [] });
 blk(67, 'cherry_planks', 'Cherry Planks', { hard: 2, tool: 'axe', sound: 'wood' });
 blk(68, 'acacia_log', 'Acacia Log', { hard: 2, tool: 'axe', tex: { top: 'acacia_log_top', bottom: 'acacia_log_top', side: 'acacia_log' }, sound: 'wood' });
-blk(69, 'acacia_leaves', 'Acacia Leaves', { hard: 0.25, transparent: true, sound: 'grass', drops: [] });
+blk(69, 'acacia_leaves', 'Acacia Leaves', { hard: 0.25, transparent: true, sound: 'grass', drops: r => r() < 0.06 ? [{ id: 84, n: 1 }] : [] });
 blk(70, 'acacia_planks', 'Acacia Planks', { hard: 2, tool: 'axe', sound: 'wood' });
 blk(71, 'lantern', 'Lantern', { hard: 0.8, tool: 'pickaxe', emit: 15, transparent: true, sound: 'stone' });
 blk(72, 'pink_tulip', 'Pink Tulip', { hard: 0.05, solid: false, transparent: true, cross: true, sound: 'grass' });
 blk(73, 'cornflower', 'Cornflower', { hard: 0.05, solid: false, transparent: true, cross: true, sound: 'grass' });
 blk(74, 'pumpkin', 'Pumpkin', { hard: 1, tool: 'axe', tex: { top: 'pumpkin_top', bottom: 'pumpkin_top', side: 'pumpkin_side' }, sound: 'wood' });
+blk(75, 'farmland', 'Farmland', { hard: 0.6, tool: 'shovel', tex: { top: 'farmland', bottom: 'dirt', side: 'dirt' }, drops: [{ id: 3, n: 1 }], sound: 'gravel' });
+blk(76, 'wheat_0', 'Wheat', { hard: 0.05, solid: false, transparent: true, cross: true, drops: [{ id: 285, n: 1 }], sound: 'grass' });
+blk(77, 'wheat_1', 'Wheat', { hard: 0.05, solid: false, transparent: true, cross: true, drops: [{ id: 285, n: 1 }], sound: 'grass' });
+blk(78, 'wheat_2', 'Wheat', { hard: 0.05, solid: false, transparent: true, cross: true, sound: 'grass', drops: r => [{ id: 286, n: 1 }, { id: 285, n: 1 + (r() * 2 | 0) }] });
+const SAPS = ['oak', 'birch', 'spruce', 'jungle', 'cherry', 'acacia'];
+SAPS.forEach((s, i) => blk(79 + i, s + '_sapling', s[0].toUpperCase() + s.slice(1) + ' Sapling',
+  { hard: 0.05, solid: false, transparent: true, cross: true, tex: { all: s + '_sapling' }, sound: 'grass' }));
+export const SAPLINGS = [79, 80, 81, 82, 83, 84]; // index = tree species
 
 export const BLOCKS = B;
 export const LOGS = [10, 13, 16, 59, 65, 68];
@@ -137,6 +145,9 @@ itm(280, 'gunpowder', 'Gunpowder');
 itm(281, 'rotten_flesh', 'Rotten Flesh', { food: [4, 0.8] });
 itm(282, 'egg', 'Egg');
 itm(283, 'arrow', 'Arrow');
+itm(285, 'wheat_seeds', 'Wheat Seeds');
+itm(286, 'wheat', 'Wheat');
+itm(287, 'bread', 'Bread', { food: [5, 6] });
 itm(284, 'bow', 'Bow', { stack: 1, tool: { type: 'bow', tier: 0, speed: 1, dmg: 1, dur: 384 } });
 
 // tools: [type, base dmg, dur, speed] per tier
@@ -222,6 +233,8 @@ ARMOR_MATS.forEach((M, si) => {
   shaped(base + 2, 1, ['MMM', 'M M', 'M M'], { M });           // leggings
   shaped(base + 3, 1, ['M M', 'M M'], { M });                  // boots
 });
+
+shaped(287, 1, ['WWW'], { W: [286] }); // bread
 
 // wool dyeing-lite: skip. white wool from string:
 shaped(51, 1, ['SS', 'SS'], { S: [267] });
