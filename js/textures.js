@@ -235,13 +235,15 @@ export function buildAtlas() {
   let idx = 0;
   for (const name of Object.keys(PAINT)) {
     const tx = idx % ATLAS, ty = (idx / ATLAS) | 0;
+    // procedural base first — block textures must stay fully opaque, so a
+    // user override with transparent pixels is composited over the base
+    // (the solid-pass shader discards texels with alpha < 0.5)
+    const p = new P(mulberry32(hashString(name)));
+    PAINT[name](p);
+    ctx.putImageData(new ImageData(p.d, TILE, TILE), tx * TILE, ty * TILE);
     if (OVERRIDES[name]) {
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(OVERRIDES[name], tx * TILE, ty * TILE, TILE, TILE);
-    } else {
-      const p = new P(mulberry32(hashString(name)));
-      PAINT[name](p);
-      ctx.putImageData(new ImageData(p.d, TILE, TILE), tx * TILE, ty * TILE);
     }
     tiles.set(name, [tx, ty]);
     idx++;
