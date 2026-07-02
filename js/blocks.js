@@ -85,11 +85,21 @@ blk(61, 'jungle_planks', 'Jungle Planks', { hard: 2, tool: 'axe', sound: 'wood' 
 blk(62, 'bookshelf', 'Bookshelf', { hard: 1.5, tool: 'axe', tex: { top: 'oak_planks', bottom: 'oak_planks', side: 'bookshelf' }, sound: 'wood' });
 blk(63, 'granite', 'Granite', { hard: 1.5, tool: 'pickaxe', tier: 1, needsTool: true });
 blk(64, 'diorite', 'Diorite', { hard: 1.5, tool: 'pickaxe', tier: 1, needsTool: true });
+blk(65, 'cherry_log', 'Cherry Log', { hard: 2, tool: 'axe', tex: { top: 'cherry_log_top', bottom: 'cherry_log_top', side: 'cherry_log' }, sound: 'wood' });
+blk(66, 'cherry_leaves', 'Cherry Blossoms', { hard: 0.25, transparent: true, sound: 'grass', drops: [] });
+blk(67, 'cherry_planks', 'Cherry Planks', { hard: 2, tool: 'axe', sound: 'wood' });
+blk(68, 'acacia_log', 'Acacia Log', { hard: 2, tool: 'axe', tex: { top: 'acacia_log_top', bottom: 'acacia_log_top', side: 'acacia_log' }, sound: 'wood' });
+blk(69, 'acacia_leaves', 'Acacia Leaves', { hard: 0.25, transparent: true, sound: 'grass', drops: [] });
+blk(70, 'acacia_planks', 'Acacia Planks', { hard: 2, tool: 'axe', sound: 'wood' });
+blk(71, 'lantern', 'Lantern', { hard: 0.8, tool: 'pickaxe', emit: 15, transparent: true, sound: 'stone' });
+blk(72, 'pink_tulip', 'Pink Tulip', { hard: 0.05, solid: false, transparent: true, cross: true, sound: 'grass' });
+blk(73, 'cornflower', 'Cornflower', { hard: 0.05, solid: false, transparent: true, cross: true, sound: 'grass' });
+blk(74, 'pumpkin', 'Pumpkin', { hard: 1, tool: 'axe', tex: { top: 'pumpkin_top', bottom: 'pumpkin_top', side: 'pumpkin_side' }, sound: 'wood' });
 
 export const BLOCKS = B;
-export const LOGS = [10, 13, 16, 59];
-export const PLANKS = [12, 15, 18, 61];
-export const LEAVES = [11, 14, 17, 60];
+export const LOGS = [10, 13, 16, 59, 65, 68];
+export const PLANKS = [12, 15, 18, 61, 67, 70];
+export const LEAVES = [11, 14, 17, 60, 66, 69];
 
 // ---------------------------------------------------------------
 // Items (id >= 256)
@@ -175,6 +185,8 @@ function shapeless(out, n, ingredients) { RECIPES.push({ out: [out, n], ingredie
 
 // planks from each log
 shapeless(12, 4, [10]); shapeless(15, 4, [13]); shapeless(18, 4, [16]); shapeless(61, 4, [59]);
+shapeless(67, 4, [65]); shapeless(70, 4, [68]);
+shaped(71, 1, ['I', 'T'], { I: [259], T: [30] }); // lantern: iron ingot over torch
 shaped(256, 4, ['P', 'P'], { P: PLANKS });                      // sticks
 shaped(26, 1, ['PP', 'PP'], { P: PLANKS });                     // crafting table
 shaped(27, 1, ['CCC', 'C C', 'CCC'], { C: [4, 46] });           // furnace

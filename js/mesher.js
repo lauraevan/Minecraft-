@@ -1,9 +1,12 @@
 // ---------------------------------------------------------------
 // mesher.js — greedy chunk mesher with AO + baked light attributes
 // ---------------------------------------------------------------
-import { BLOCKS, AIR } from './blocks.js';
+import { BLOCKS, AIR, LEAVES } from './blocks.js';
 import { CHUNK, H } from './world.js';
 import { tileFor } from './textures.js';
+
+const WAVY_CROSS = new Set([38, 39, 40, 41, 42, 43, 72, 73]); // plants that sway (not torch/ladder)
+const LEAF_SET = new Set(LEAVES);
 
 // face dirs: 0 +x, 1 -x, 2 +y, 3 -y, 4 +z, 5 -z
 const NORMAL = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
@@ -16,8 +19,8 @@ const isCube = id => id !== AIR && !BLOCKS[id].cross && !BLOCKS[id].fluid;
 const opaque = id => !BLOCKS[id].transparent;
 
 class GeomData {
-  constructor() { this.pos = []; this.uv = []; this.tile = []; this.light = []; this.ao = []; this.index = []; this.vcount = 0; }
-  quad(pts, uvs, tile, sky, blk, aos) {
+  constructor() { this.pos = []; this.uv = []; this.tile = []; this.light = []; this.ao = []; this.wave = []; this.index = []; this.vcount = 0; }
+  quad(pts, uvs, tile, sky, blk, aos, wave = 0) {
     const b = this.vcount;
     for (let i = 0; i < 4; i++) {
       this.pos.push(pts[i][0], pts[i][1], pts[i][2]);
@@ -25,6 +28,7 @@ class GeomData {
       this.tile.push(tile[0], tile[1]);
       this.light.push(sky, blk);
       this.ao.push(aos[i]);
+      this.wave.push(Array.isArray(wave) ? wave[i] : wave);
     }
     this.index.push(b, b + 1, b + 2, b, b + 2, b + 3);
     this.vcount += 4;
@@ -134,10 +138,11 @@ export function meshChunk(world, cx, cz) {
         const aoc = [];
         for (let ci = 0; ci < 4; ci++) aoc.push((0.4 + 0.2 * ((a >> (ci * 2)) & 3)) * DIR_BRIGHT[d]);
         // corner order in aoBits: 00,10,11,01
+        const wv = LEAF_SET.has(id) ? 0.6 : 0;
         if (d === 0 || d === 2 || d === 5)
-          solid.quad([c00, c01, c11, c10], [u00, u01, u11, u10], tile, sky, blk, [aoc[0], aoc[3], aoc[2], aoc[1]]);
+          solid.quad([c00, c01, c11, c10], [u00, u01, u11, u10], tile, sky, blk, [aoc[0], aoc[3], aoc[2], aoc[1]], wv);
         else
-          solid.quad([c00, c10, c11, c01], [u00, u10, u11, u01], tile, sky, blk, [aoc[0], aoc[1], aoc[2], aoc[3]]);
+          solid.quad([c00, c10, c11, c01], [u00, u10, u11, u01], tile, sky, blk, [aoc[0], aoc[1], aoc[2], aoc[3]], wv);
         // clear mask
         for (let hh = 0; hh < h; hh++) for (let ww = 0; ww < w; ww++) maskKey[(v + hh) * US + u + ww] = 0;
         u += w;
@@ -157,9 +162,11 @@ export function meshChunk(world, cx, cz) {
       const sky = getS(wx, y, wz), blk = getL(wx, y, wz);
       const tile = tileFor(id, 0);
       const a = [1, 1, 1, 1];
+      const wv = WAVY_CROSS.has(id) ? 1 : 0;
       const q = (p1, p2, p3, p4) => {
-        solid.quad([p1, p2, p3, p4], [[0, 0], [1, 0], [1, 1], [0, 1]], tile, sky, blk, a);
-        solid.quad([p4, p3, p2, p1], [[0, 1], [1, 1], [1, 0], [0, 0]], tile, sky, blk, a);
+        // bottom verts anchored, top verts sway
+        solid.quad([p1, p2, p3, p4], [[0, 0], [1, 0], [1, 1], [0, 1]], tile, sky, blk, a, [0, 0, wv, wv]);
+        solid.quad([p4, p3, p2, p1], [[0, 1], [1, 1], [1, 0], [0, 0]], tile, sky, blk, a, [wv, wv, 0, 0]);
       };
       const e = 0.146;
       q([lx + e, y, lz + e], [lx + 1 - e, y, lz + 1 - e], [lx + 1 - e, y + 1, lz + 1 - e], [lx + e, y + 1, lz + e]);
@@ -184,7 +191,7 @@ export function meshChunk(world, cx, cz) {
         else if (d === 4) pts = [[lx, y, lz + 1], [lx + 1, y, lz + 1], [lx + 1, yTop, lz + 1], [lx, yTop, lz + 1]];
         else pts = [[lx + 1, y, lz], [lx, y, lz], [lx, yTop, lz], [lx + 1, yTop, lz]];
         const uvs = d === 2 || d === 3 ? [[0, 0], [1, 0], [1, 1], [0, 1]] : [[0, 0], [1, 0], [1, 0.875], [0, 0.875]];
-        fluid.quad(pts, uvs, tile, sky, blk, a);
+        fluid.quad(pts, uvs, tile, sky, blk, a, d === 2 && id === 8 && topOpen ? 1 : 0);
       }
     }
   }

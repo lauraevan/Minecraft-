@@ -169,7 +169,9 @@ export class Player {
     this.lastSprintTap = -1;
     this.damageFlash = 0;
     this.stats = { mined: 0, placed: 0, kills: 0, deaths: 0 };
+    this.xp = 0; this.level = 0;
     this.onDamaged = null; // callback(amount)
+    this.onLevelUp = null;
   }
 
   eyePos() { return { x: this.pos.x, y: this.pos.y + EYE, z: this.pos.z }; }
@@ -178,6 +180,16 @@ export class Player {
     return { x: -Math.sin(this.yaw) * cp, y: Math.sin(this.pitch), z: -Math.cos(this.yaw) * cp };
   }
   held() { return this.inventory[this.sel]; }
+
+  xpNeed() { return 7 + this.level * 3; }
+  addXP(n) {
+    this.xp += n;
+    while (this.xp >= this.xpNeed()) {
+      this.xp -= this.xpNeed();
+      this.level++;
+      if (this.onLevelUp) this.onLevelUp(this.level);
+    }
+  }
 
   armorPoints() {
     let p = 0;
@@ -242,12 +254,14 @@ export class Player {
 
     // --- movement input ---
     let fwd = 0, str = 0;
+    const ts = input.touchState;
     if (!uiOpen) {
       if (input.keys['KeyW']) fwd += 1;
       if (input.keys['KeyS']) fwd -= 1;
       if (input.keys['KeyA']) str -= 1;
       if (input.keys['KeyD']) str += 1;
-      this.sneaking = !!input.keys['ShiftLeft'] || !!input.keys['ShiftRight'];
+      if (ts) { fwd += ts.fwd; str += ts.str; }
+      this.sneaking = !!input.keys['ShiftLeft'] || !!input.keys['ShiftRight'] || !!(ts && ts.sneak);
       if ((input.keys['ControlLeft'] || input.keys['ControlRight']) && fwd > 0 && this.hunger > 6) this.sprinting = true;
       if (input.justKeys['KeyW']) {
         const now = performance.now();
@@ -259,7 +273,8 @@ export class Player {
 
     let speed = this.sneaking ? SNEAK : this.sprinting ? SPRINT : WALK;
     if (this.inWater) speed *= 0.55;
-    const len = Math.hypot(fwd, str) || 1;
+    const len = Math.max(1, Math.hypot(fwd, str)); // analog input keeps partial speed
+    const jumpHeld = !uiOpen && (input.keys['Space'] || (ts && ts.jump));
     const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
     const tx = ((-sin * fwd) / len + (cos * str) / len) * speed;
     const tz = ((-cos * fwd) / len + (-sin * str) / len) * speed;
@@ -271,15 +286,15 @@ export class Player {
     if (this.inWater) {
       this.vel.y -= 10 * dt;
       this.vel.y = Math.max(this.vel.y, -3.2);
-      if (!uiOpen && input.keys['Space']) this.vel.y = Math.min(this.vel.y + 24 * dt, 3.5);
+      if (jumpHeld) this.vel.y = Math.min(this.vel.y + 24 * dt, 3.5);
       this.fallStart = null;
     } else if (this.onLadder) {
-      this.vel.y = !uiOpen && input.keys['Space'] ? 2.5 : (this.sneaking ? 0 : -2);
+      this.vel.y = jumpHeld ? 2.5 : (this.sneaking ? 0 : -2);
       this.fallStart = null;
     } else {
       this.vel.y -= GRAV * dt;
       this.vel.y = Math.max(this.vel.y, -60);
-      if (!uiOpen && input.keys['Space'] && this.onGround) {
+      if (jumpHeld && this.onGround) {
         this.vel.y = JUMP_V;
         this.exhaustion += this.sprinting ? 0.2 : 0.05;
       }

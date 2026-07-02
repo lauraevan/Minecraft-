@@ -103,6 +103,57 @@ export class GameAudio {
   stepFor(soundCat, pos) { this.play('step_' + (soundCat === 'none' ? 'grass' : soundCat), pos); }
   digFor(soundCat, pos) { this.play('dig_' + (soundCat === 'none' ? 'stone' : soundCat), pos); }
 
+  // ---- mob voices ----
+  mobCall(type, pos, angry = false) {
+    switch (type) {
+      case 'cow':
+        this.tone(pos, { f0: 175, f1: 110, dur: 0.55, gain: 0.3, type: 'sawtooth' });
+        this.tone(pos, { f0: 88, f1: 62, dur: 0.5, gain: 0.2, type: 'sine', delay: 0.04 });
+        break;
+      case 'pig':
+        this.burst(pos, { freq: 320, q: 2.5, dur: 0.08, gain: 0.3 });
+        this.tone(pos, { f0: 150, f1: 95, dur: 0.1, gain: 0.15, type: 'square' });
+        this.burst(pos, { freq: 280, q: 2.5, dur: 0.09, gain: 0.25, delay: 0.16 });
+        break;
+      case 'sheep':
+        for (let i = 0; i < 4; i++)
+          this.tone(pos, { f0: 335 - i * 8, f1: 300 - i * 8, dur: 0.09, gain: 0.2, type: 'triangle', delay: i * 0.1 });
+        break;
+      case 'chicken':
+        for (let i = 0; i < 3; i++)
+          this.tone(pos, { f0: 820 + Math.random() * 150, f1: 620, dur: 0.07, gain: 0.14, type: 'square', delay: i * 0.13 });
+        break;
+      case 'zombie':
+        this.tone(pos, { f0: angry ? 120 : 95, f1: 68, dur: 0.7, gain: 0.25, type: 'sawtooth' });
+        break;
+      case 'skeleton':
+        for (let i = 0; i < 4; i++) this.burst(pos, { freq: 2400, q: 3, dur: 0.03, gain: 0.18, delay: i * 0.07 });
+        break;
+      case 'spider':
+        this.burst(pos, { freq: 3200, q: 0.7, dur: 0.25, gain: 0.12, type: 'highpass' });
+        break;
+      case 'creeper':
+        this.burst(pos, { freq: 1400, q: 1.2, dur: 0.12, gain: 0.06 });
+        break;
+    }
+  }
+
+  // ---- ambience ----
+  ambient(name) {
+    if (name === 'birds') {
+      const n = 2 + (Math.random() * 3 | 0);
+      for (let i = 0; i < n; i++) {
+        const f = 1900 + Math.random() * 1400;
+        this.tone(null, { f0: f, f1: f * (Math.random() < 0.5 ? 1.35 : 0.72), dur: 0.06 + Math.random() * 0.05, gain: 0.06, type: 'sine', delay: i * (0.09 + Math.random() * 0.08) });
+      }
+    } else if (name === 'crickets') {
+      for (let i = 0; i < 6; i++) this.burst(null, { freq: 4300, q: 9, dur: 0.035, gain: 0.045, delay: i * 0.085 });
+    } else if (name === 'cave') {
+      this.tone(null, { f0: 64, f1: 52, dur: 2.6, gain: 0.09, type: 'sine' });
+      this.burst(null, { freq: 340, q: 0.4, dur: 2.0, gain: 0.04, type: 'lowpass' });
+    }
+  }
+
   // gentle generative music pad
   updateMusic(dt, underground) {
     if (!this.ctx) return;

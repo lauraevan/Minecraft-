@@ -49,8 +49,20 @@ Serve the repo root with any static file server (or open via githack), then:
 - **Bow & arrows** with gravity-arc projectiles
 - **Persistence**: modified chunks, player state, block entities, and mobs saved to
   IndexedDB (autosave every 30 s + manual save); world seeds are reproducible
-- **Audio**: Web Audio–synthesized digging/steps/combat/UI sounds + generative ambient music
-- **Settings**: render distance, FOV, mouse sensitivity, volume (persisted)
+- **Audio**: Web Audio–synthesized digging/steps/combat/UI sounds, mob voices (moo/oink/baa/
+  cluck/groans), birdsong by day, crickets at night, cave drones, generative ambient music
+- **Living mobs**: heads track you, smooth turning, sheep graze real grass, chickens
+  flutter and peck, herds drift together, baby animals
+- **Premium shaders**: Off / Fancy (color grade + warmth + vignette) / Ultra (adds bloom,
+  waving leaves/plants/water, underwater refraction) — custom pipeline, no libraries
+- **Cozy world**: cherry groves, flower meadows, birch forests, savannas, swamps; lanterns,
+  pumpkins, tulips, cornflowers; fireflies at dusk; drifting blocky clouds
+- **XP & levels** drawn with the hand-made HUD art (mining ores, smelting, combat)
+- **Full mobile support**: virtual joystick, drag-to-look, hold-to-mine, tap-to-place,
+  jump/sneak/inventory buttons
+- **Hand-drawn HUD** (`assets/icons.png`): hearts, hunger, armor, bubbles, XP bar,
+  crosshair, and hotbar slot art made in ibis Paint
+- **Settings**: shaders, render distance, FOV, mouse sensitivity, volume (persisted)
 
 ## Code map
 

@@ -161,6 +161,37 @@ reg('ladder', p => { p.fill([0, 0, 0], 0); p.rect(2, 0, 2, 16, C.oak); p.rect(12
 reg('bookshelf', p => { planks(p, C.oak, C.oakDark); const cols = [[170, 60, 50], [60, 90, 160], [80, 140, 70], [200, 170, 70], [140, 80, 150]]; for (let row = 0; row < 2; row++) { let x = 1; while (x < 15) { const w = 1 + (p.r() * 2 | 0); p.rect(x, 2 + row * 7, w, 5, cols[p.r() * cols.length | 0]); x += w + (p.r() < 0.3 ? 1 : 0); } } });
 for (const [name, col] of Object.entries(WOOL))
   reg('wool_' + name, p => { p.noise(col, 0.09); for (let i = 0; i < 6; i++) p.rect(p.r() * 14 | 0, p.r() * 14 | 0, 2, 1, sh(col, 0.9)); });
+reg('cherry_log', p => logSide(p, [92, 58, 62], [58, 34, 40]));
+reg('cherry_log_top', p => logTop(p, [92, 58, 62], [58, 34, 40]));
+reg('cherry_leaves', p => {
+  for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) {
+    if (p.r() < 0.08) { p.set(x, y, [0, 0, 0], 0); continue; }
+    p.set(x, y, sh([238, 168, 196], 0.8 + p.r() * 0.4));
+  }
+  p.speck([250, 220, 235], 14); p.speck([210, 120, 160], 10);
+});
+reg('cherry_planks', p => planks(p, [196, 136, 148], [130, 80, 92]));
+reg('acacia_log', p => logSide(p, [116, 104, 96], [80, 70, 64]));
+reg('acacia_log_top', p => logTop(p, [186, 100, 60], [116, 104, 96]));
+reg('acacia_leaves', p => leaves(p, [110, 138, 52]));
+reg('acacia_planks', p => planks(p, [186, 100, 60], [128, 66, 38]));
+reg('lantern', p => {
+  p.fill([0, 0, 0], 0);
+  p.rect(4, 3, 8, 10, [66, 60, 62]);
+  p.rect(5, 4, 6, 8, [255, 214, 120]);
+  p.rect(6, 6, 4, 4, [255, 240, 190]);
+  p.rect(6, 1, 4, 2, [66, 60, 62]);
+  p.rect(7, 0, 2, 1, [90, 84, 86]);
+  for (let y = 4; y < 12; y += 2) { p.set(4, y, [50, 46, 48]); p.set(11, y, [50, 46, 48]); }
+});
+reg('pink_tulip', p => { p.fill([0, 0, 0], 0); p.rect(7, 8, 1, 8, [64, 120, 40]); p.set(5, 10, [64, 120, 40]); p.rect(6, 4, 3, 4, [240, 150, 185]); p.rect(7, 3, 1, 1, [250, 190, 215]); });
+reg('cornflower', p => { p.fill([0, 0, 0], 0); p.rect(7, 8, 1, 8, [64, 120, 40]); p.set(9, 11, [64, 120, 40]); p.blob(7, 5, 2, [70, 105, 215]); p.set(7, 5, [40, 60, 150]); });
+reg('pumpkin_top', p => { p.noise([196, 116, 40], 0.1); p.blob(8, 8, 2, [110, 140, 60]); p.set(8, 8, [80, 105, 45]); });
+reg('pumpkin_side', p => {
+  p.noise([214, 126, 44], 0.08);
+  for (let x = 2; x < TILE; x += 4) for (let y = 0; y < TILE; y++) p.set(x, y, [178, 100, 32]);
+  p.rect(0, 0, 16, 1, [160, 92, 30]); p.rect(0, 15, 16, 1, [160, 92, 30]);
+});
 
 // crack overlay stages 0-9
 for (let s = 0; s < 10; s++) reg('crack' + s, p => {

@@ -2,7 +2,7 @@
 // main.js — Crafter Mine game orchestrator
 // ---------------------------------------------------------------
 import * as THREE from 'three';
-import { World, CHUNK, H, SEA, BIOME_NAMES } from './world.js';
+import { World, CHUNK, H, SEA, BIOME_NAMES, GRASSY_BIOMES, LEAFY_BIOMES } from './world.js';
 import { meshChunk } from './mesher.js';
 import { BLOCKS, ITEMS, defOf, AIR, SMELTING, FUELS } from './blocks.js';
 import { buildAtlas, TILE, ATLAS } from './textures.js';
@@ -12,15 +12,34 @@ import { UI } from './ui.js';
 import { GameAudio } from './audio.js';
 import { saveWorld, loadMeta, loadChunks, clearSave } from './save.js';
 import { clamp, lerp } from './util.js';
+import { loadUserArt, userCrosshair, userSlotTile } from './assets.js';
+import { PostFX } from './post.js';
+import { TouchControls } from './mobile.js';
 
 const $ = id => document.getElementById(id);
+const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+
+// user-made HUD art (must load before UI icons are built)
+await loadUserArt();
 
 // ---------------- settings ----------------
 const SETTINGS = Object.assign(
-  { rd: 5, fov: 75, sens: 8, vol: 70 },
+  { rd: IS_TOUCH ? 4 : 5, fov: 75, sens: 8, vol: 70, shader: IS_TOUCH ? 0 : 1 },
   JSON.parse(localStorage.getItem('cm_settings') || '{}'));
 window.SETTINGS = SETTINGS;
 function saveSettings() { localStorage.setItem('cm_settings', JSON.stringify(SETTINGS)); }
+
+// apply user crosshair + hotbar slot art
+{
+  const ch = userCrosshair();
+  if (ch) $('crosshair').innerHTML = `<img src="${ch}" style="image-rendering:pixelated">`;
+  const tile = userSlotTile();
+  if (tile) {
+    const style = document.createElement('style');
+    style.textContent = `#hotbar .slot { background-image:url(${tile}); background-size:cover; image-rendering:pixelated; }`;
+    document.head.appendChild(style);
+  }
+}
 
 // ---------------- three.js setup ----------------
 const renderer = new THREE.WebGLRenderer({ antialias: false });
@@ -29,10 +48,12 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 $('game').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(SETTINGS.fov, window.innerWidth / window.innerHeight, 0.05, 1000);
+const postFX = new PostFX(renderer);
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  postFX.resize(window.innerWidth, window.innerHeight);
 });
 
 // atlas texture
@@ -47,10 +68,26 @@ const chunkVert = `
 attribute vec2 tile;
 attribute vec2 lightsb;
 attribute float ao;
+attribute float wave;
+uniform float uTime;
+uniform float uWaveAmp;
+uniform float uCutout;
 varying vec2 vUv; varying vec2 vTile; varying vec2 vLight; varying float vAo; varying float vDist;
 void main() {
   vUv = uv; vTile = tile; vLight = lightsb; vAo = ao;
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  vec3 pos = position;
+  if (uWaveAmp > 0.0) {
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    if (uCutout > 0.5) {
+      // leaves + plants sway sideways
+      pos.x += sin(uTime * 1.7 + wp.x * 0.7 + wp.z * 0.9 + wp.y * 0.4) * 0.055 * wave * uWaveAmp;
+      pos.z += cos(uTime * 1.4 + wp.x * 0.9 + wp.z * 0.6) * 0.045 * wave * uWaveAmp;
+    } else {
+      // water gently bobs
+      pos.y += sin(uTime * 1.2 + wp.x * 0.8 + wp.z * 0.8) * 0.05 * wave * uWaveAmp;
+    }
+  }
+  vec4 mv = modelViewMatrix * vec4(pos, 1.0);
   vDist = -mv.z;
   gl_Position = projectionMatrix * mv;
 }`;
@@ -74,6 +111,8 @@ const sharedUniforms = {
   uFogColor: { value: new THREE.Color(0xbcd8ff) },
   uFogNear: { value: 56 },
   uFogFar: { value: 80 },
+  uTime: { value: 0 },
+  uWaveAmp: { value: 0 },
 };
 const solidMat = new THREE.ShaderMaterial({
   uniforms: { ...sharedUniforms, uCutout: { value: 1 } },
@@ -89,6 +128,31 @@ const fluidMat = new THREE.ShaderMaterial({
 const sunMesh = new THREE.Mesh(new THREE.PlaneGeometry(42, 42), new THREE.MeshBasicMaterial({ color: 0xfff3a8, fog: false, depthWrite: false }));
 const moonMesh = new THREE.Mesh(new THREE.PlaneGeometry(26, 26), new THREE.MeshBasicMaterial({ color: 0xd8deea, fog: false, depthWrite: false }));
 scene.add(sunMesh); scene.add(moonMesh);
+
+// drifting blocky clouds
+const cloudTex = (() => {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 64;
+  const cx = cv.getContext('2d');
+  cx.fillStyle = 'rgba(255,255,255,0.92)';
+  let s = 12345;
+  const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 26; i++) {
+    const x = rnd() * 64 | 0, y = rnd() * 64 | 0, w = 4 + rnd() * 12 | 0, h = 2 + rnd() * 6 | 0;
+    cx.fillRect(x, y, w, h);
+    cx.fillRect(x + 2, y - 2, Math.max(2, w - 4), 2);
+  }
+  const t = new THREE.CanvasTexture(cv);
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(5, 5);
+  return t;
+})();
+const cloudMat = new THREE.MeshBasicMaterial({ map: cloudTex, transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide });
+const cloudMesh = new THREE.Mesh(new THREE.PlaneGeometry(1100, 1100), cloudMat);
+cloudMesh.rotation.x = Math.PI / 2;
+cloudMesh.position.y = 112;
+scene.add(cloudMesh);
 
 // block outline + crack overlay
 const outline = new THREE.LineSegments(
@@ -118,8 +182,18 @@ let world = null, player = null, entities = null, ui = null;
 const audio = new GameAudio();
 audio.setVolume(SETTINGS.vol / 100);
 const input = new Input(renderer.domElement);
+const touch = new TouchControls(input, {
+  pause: () => { if (state === 'playing' && !paused) showPause(true); },
+  inventory: () => {
+    if (state !== 'playing' || paused || !ui) return;
+    if (ui.isOpen()) ui.close();
+    else if (!player.dead) ui.open('inventory');
+  },
+});
+touch.show(false);
 let state = 'menu'; // menu | loading | playing
 let paused = false;
+let ambTimer = 5, fireflyTimer = 1, gameTime = 0, lastDusk = 0;
 let deathShown = false;
 const chunkMeshes = new Map(); // key -> {solid, fluid}
 let genQueue = [];
@@ -154,6 +228,7 @@ function updateSky(dt) {
   // dusk/dawn tint
   const t = ((world.time % 24000) + 24000) % 24000;
   const duskAmt = Math.max(0, 1 - Math.abs(t - 12200) / 1400) + Math.max(0, 1 - Math.abs(t - 23000) / 1400);
+  lastDusk = clamp(duskAmt, 0, 1);
   fog.lerp(duskFog, clamp(duskAmt, 0, 1) * 0.55);
   if (player && player.headInWater) {
     fog.setRGB(0.08, 0.2, 0.45); sky.setRGB(0.08, 0.2, 0.45);
@@ -175,6 +250,14 @@ function updateSky(dt) {
   sunMesh.lookAt(camera.position);
   moonMesh.position.copy(camera.position).addScaledVector(dir, -380);
   moonMesh.lookAt(camera.position);
+  // clouds follow the player but stay world-anchored via texture offset
+  if (player) {
+    cloudMesh.position.x = player.pos.x;
+    cloudMesh.position.z = player.pos.z;
+    cloudTex.offset.set((player.pos.x + gameTime * 1.6) / 220, -player.pos.z / 220);
+    const cb = 0.35 + 0.65 * f;
+    cloudMat.color.setRGB(cb, cb, cb * 1.02);
+  }
 }
 
 // ---------------- chunk pipeline ----------------
@@ -198,6 +281,7 @@ function rebuildChunkMesh(cx, cz) {
     g.setAttribute('tile', new THREE.Float32BufferAttribute(d.tile, 2));
     g.setAttribute('lightsb', new THREE.Float32BufferAttribute(d.light, 2));
     g.setAttribute('ao', new THREE.Float32BufferAttribute(d.ao, 1));
+    g.setAttribute('wave', new THREE.Float32BufferAttribute(d.wave, 1));
     g.setIndex(d.index);
     g.computeBoundingSphere();
     const mesh = new THREE.Mesh(g, part === 'solid' ? solidMat : fluidMat);
@@ -344,6 +428,31 @@ function currentRay() {
   return raycast(world, eye.x, eye.y, eye.z, dir.x, dir.y, dir.z, 5);
 }
 
+function screenDir(px, py) {
+  const v = new THREE.Vector3((px / window.innerWidth) * 2 - 1, -(py / window.innerHeight) * 2 + 1, 0.5);
+  v.unproject(camera);
+  v.sub(camera.position).normalize();
+  return { origin: player.eyePos(), dir: { x: v.x, y: v.y, z: v.z } };
+}
+function rayFromScreen(px, py) {
+  const { origin, dir } = screenDir(px, py);
+  return raycast(world, origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, 5);
+}
+
+const ORE_XP = { 19: 1, 20: 1, 21: 2, 22: 7, 23: 4, 24: 6, 25: 3 };
+
+function attackMob(mob, dir) {
+  player.attackCooldown = 0.55;
+  const held = player.held();
+  const tool = held && ITEMS[held.id] ? ITEMS[held.id].tool : null;
+  let dmg = tool ? tool.dmg : 1;
+  if (!player.onGround && player.vel.y < 0) dmg *= 1.5; // crit
+  const kd = Math.hypot(dir.x, dir.z) + 0.001;
+  entities.hurtMob(mob, dmg, { x: dir.x / kd, z: dir.z / kd }, player, true);
+  if (tool) { if (player.damageTool(player.sel)) audio.play('break_tool'); }
+  player.exhaustion += 0.1;
+}
+
 function breakTimeFor(id) {
   const def = BLOCKS[id];
   if (def.hard < 0) return Infinity;
@@ -365,11 +474,12 @@ function canHarvestBlock(id) {
 }
 
 function handleMining(dt) {
-  const ray = currentRay();
+  const ray = touch.mining ? rayFromScreen(touch.mining.x, touch.mining.y) : currentRay();
   outline.visible = !!ray;
   if (ray) outline.position.set(ray.x + 0.5, ray.y + 0.5, ray.z + 0.5);
 
-  if ((!input.mouse[0] && !input.justMouse[0]) || !ray || BLOCKS[ray.id].hard < 0) {
+  const held0 = input.mouse[0] || input.justMouse[0] || !!touch.mining;
+  if (!held0 || !ray || BLOCKS[ray.id].hard < 0) {
     mining = null;
     crackMesh.visible = false;
     return;
@@ -379,15 +489,7 @@ function handleMining(dt) {
     const eye = player.eyePos(), dir = player.lookDir();
     const mob = entities.raycastMob(eye, dir, Math.min(3.5, ray.dist));
     if (mob && player.attackCooldown <= 0) {
-      player.attackCooldown = 0.55;
-      const held = player.held();
-      const tool = held && ITEMS[held.id] ? ITEMS[held.id].tool : null;
-      let dmg = tool ? tool.dmg : 1;
-      if (!player.onGround && player.vel.y < 0) dmg *= 1.5; // crit
-      const kd = Math.hypot(dir.x, dir.z) + 0.001;
-      entities.hurtMob(mob, dmg, { x: dir.x / kd, z: dir.z / kd }, player, true);
-      if (tool) { if (player.damageTool(player.sel)) audio.play('break_tool'); }
-      player.exhaustion += 0.1;
+      attackMob(mob, dir);
       mining = null;
       return;
     }
@@ -415,6 +517,7 @@ function handleMining(dt) {
         if (drop.id === 27 || drop.id === 28) drop.id = 27;
         entities.dropItem(ray.x + 0.5, ray.y + 0.3, ray.z + 0.5, drop);
       }
+      if (ORE_XP[id]) player.addXP(ORE_XP[id]);
     }
     const held = player.held();
     if (held && ITEMS[held.id] && ITEMS[held.id].tool) {
@@ -448,9 +551,20 @@ function tryInteract(ray) {
 function handlePlacing(dt) {
   placeCooldown -= dt;
   if ((!input.mouse[2] && !input.justMouse[2]) || placeCooldown > 0) return;
-  const just = input.justMouse[2];
-  const ray = currentRay();
+  doUse(currentRay(), input.justMouse[2]);
+}
 
+function handleTap(tap) {
+  // mobile quick tap: attack a mob, otherwise interact / place at the tapped spot
+  if (placeCooldown > 0) return;
+  const { origin, dir } = screenDir(tap.x, tap.y);
+  const ray = rayFromScreen(tap.x, tap.y);
+  const mob = entities.raycastMob(origin, dir, Math.min(3.5, ray ? ray.dist : 3.5));
+  if (mob && player.attackCooldown <= 0) { attackMob(mob, dir); return; }
+  doUse(ray, true);
+}
+
+function doUse(ray, just) {
   if (ray && just && !player.sneaking && tryInteract(ray)) { placeCooldown = 0.25; return; }
 
   const held = player.held();
@@ -536,7 +650,7 @@ function dropAllInventory() {
 }
 
 // ---------------- pointer lock / screens ----------------
-function requestLock() { renderer.domElement.requestPointerLock(); }
+function requestLock() { if (!IS_TOUCH) renderer.domElement.requestPointerLock(); }
 function exitLock() { if (document.pointerLockElement) document.exitPointerLock(); }
 
 document.addEventListener('pointerlockchange', () => {
@@ -617,6 +731,7 @@ function bindSetting(id, key, valId, fmt, onChange) {
     if (onChange) onChange();
   });
 }
+bindSetting('set-shader', 'shader', 'shader-val', v => ['Off', 'Fancy', 'Ultra'][v]);
 bindSetting('set-rd', 'rd', 'rd-val', v => v + ' chunks');
 bindSetting('set-fov', 'fov', 'fov-val', v => v + '°', () => { camera.fov = SETTINGS.fov; camera.updateProjectionMatrix(); });
 bindSetting('set-sens', 'sens', 'sens-val', v => String(v));
@@ -640,6 +755,8 @@ async function startGame(seedStr, meta) {
       { x: dir.x * 5, y: 2, z: dir.z * 5 });
   };
   player.onDamaged = (amt, opts) => { if (!opts.silentTick) audio.play('hurt', player.pos); };
+  player.onLevelUp = lvl => { audio.play('level'); ui.toast('Level up! Now level ' + lvl); };
+  entities.onMobKilled = (mob, byPlayer) => { if (byPlayer) player.addXP(mob.def.passive ? 1 : 5); };
   window.GAME = { get world() { return world; }, get player() { return player; }, get entities() { return entities; }, get ui() { return ui; } };
 
   if (meta) {
@@ -654,6 +771,7 @@ async function startGame(seedStr, meta) {
       player.inventory = p.inventory; player.armor = p.armor || new Array(4).fill(null);
       player.sel = p.sel || 0;
       player.stats = p.stats || player.stats;
+      player.xp = p.xp || 0; player.level = p.level || 0;
     }
   } else {
     // find a land spawn
@@ -670,18 +788,37 @@ async function startGame(seedStr, meta) {
   state = 'loading';
 }
 
+function findClearGround(cx, cz) {
+  // prefer open terrain (not inside/on top of trees, not water)
+  for (let r = 0; r <= 10; r++) {
+    for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+      const x = cx + dx * 2, z = cz + dz * 2;
+      if (!world.chunkAt(x, z) || !world.chunkAt(x, z).generated) continue;
+      const h = world.heightAt(x, z);
+      if (h <= SEA + 1) continue;
+      const ground = world.getBlock(x, h, z);
+      if (!BLOCKS[ground].solid) continue;
+      const a1 = world.getBlock(x, h + 1, z), a2 = world.getBlock(x, h + 2, z);
+      if ((a1 === AIR || BLOCKS[a1].cross) && a2 === AIR) return { x: x + 0.5, y: h + 1.05, z: z + 0.5 };
+    }
+  }
+  return null;
+}
+
 function finishLoading() {
   $('loading').classList.add('hidden');
   $('hud').classList.remove('hidden');
-  // snap player to surface if buried/floating on fresh spawn
-  if (!player.dead) {
-    const sy = world.surfaceY(Math.floor(player.pos.x), Math.floor(player.pos.z));
-    if (world.getBlock(Math.floor(player.pos.x), Math.floor(player.pos.y), Math.floor(player.pos.z)) !== AIR
-      || player.pos.y > H) player.pos.y = sy + 1.05;
+  // relocate fresh spawns that ended up buried, floating, or on a treetop
+  if (!activeMeta && !player.dead) {
+    const spot = findClearGround(Math.floor(player.pos.x), Math.floor(player.pos.z));
+    if (spot) { player.pos = spot; player.spawn = { ...spot }; }
+    else player.pos.y = world.surfaceY(Math.floor(player.pos.x), Math.floor(player.pos.z)) + 1.05;
   }
   if (activeMeta && activeMeta.mobs) entities.deserialize(activeMeta.mobs);
   state = 'playing';
-  ui.toast('Punch a tree to get wood. Good luck!');
+  touch.show(touch.active);
+  ui.toast(touch.active ? 'Hold to mine · tap to place · joystick to move' : 'Punch a tree to get wood. Good luck!');
   requestLock();
 }
 
@@ -739,17 +876,25 @@ function frame(t) {
   if (state !== 'playing') { input.endFrame(); return; }
 
   const uiOpen = ui.isOpen() || paused || player.dead;
+  const controlsActive = input.locked || (touch.active && !uiOpen);
+  input.touchState = touch.active && !uiOpen && !paused
+    ? { fwd: touch.move.fwd, str: touch.move.str, jump: touch.jump, sneak: touch.sneak }
+    : null;
 
   if (!paused) {
     world.time += dt * 20;
+    gameTime += dt;
     const df = dayFactorAt(world.time);
 
-    player.update(input, dt, uiOpen || !input.locked);
-    if (input.locked && !uiOpen) {
+    player.update(input, dt, uiOpen || !controlsActive);
+    if (controlsActive && !uiOpen) {
       handleMining(dt);
       handlePlacing(dt);
+      const tap = touch.consumeTap();
+      if (tap) handleTap(tap);
       if (input.wheel) player.sel = ((player.sel + input.wheel) % 9 + 9) % 9;
     } else {
+      touch.consumeTap();
       mining = null; crackMesh.visible = false; outline.visible = false;
     }
 
@@ -760,6 +905,28 @@ function frame(t) {
 
     audio.setListener(player.eyePos());
     audio.updateMusic(dt, player.pos.y < SEA - 10);
+
+    // nature ambience + fireflies (cozy!)
+    const bx = Math.floor(player.pos.x), bz = Math.floor(player.pos.z);
+    ambTimer -= dt;
+    if (ambTimer <= 0) {
+      ambTimer = 7 + Math.random() * 14;
+      const biome = world.biomeAt(bx, bz);
+      const underground = player.pos.y < 42 && world.getSky(bx, Math.floor(player.pos.y + 1), bz) === 0;
+      if (underground) { if (Math.random() < 0.35) audio.ambient('cave'); }
+      else if (df > 0.6 && LEAFY_BIOMES.includes(biome)) audio.ambient('birds');
+      else if (df < 0.3 && GRASSY_BIOMES.includes(biome)) audio.ambient('crickets');
+    }
+    fireflyTimer -= dt;
+    if (fireflyTimer <= 0) {
+      fireflyTimer = 0.6;
+      if (df < 0.4 && GRASSY_BIOMES.includes(world.biomeAt(bx, bz))) {
+        const ang = Math.random() * Math.PI * 2, d = 5 + Math.random() * 16;
+        const fx = player.pos.x + Math.cos(ang) * d, fz = player.pos.z + Math.sin(ang) * d;
+        const fy = world.surfaceY(Math.floor(fx), Math.floor(fz)) + 1.2 + Math.random() * 2;
+        entities.addFirefly(fx, fy, fz);
+      }
+    }
 
     if (player.dead && !deathShown) {
       deathShown = true;
@@ -794,7 +961,10 @@ function frame(t) {
   updateSky(dt);
   ui.updateHUD(dt);
   updateDebug();
-  renderer.render(scene, camera);
+  sharedUniforms.uTime.value = gameTime;
+  sharedUniforms.uWaveAmp.value = SETTINGS.shader === 2 ? 1 : 0;
+  postFX.mode = SETTINGS.shader;
+  postFX.render(scene, camera, { underwater: player.headInWater, time: gameTime, dusk: lastDusk });
   input.endFrame();
 }
 requestAnimationFrame(frame);

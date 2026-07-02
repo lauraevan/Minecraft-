@@ -7,8 +7,12 @@ import { BLOCKS, AIR } from './blocks.js';
 export const CHUNK = 16, H = 128, SEA = 48;
 const idx = (x, y, z) => x + (z << 4) + (y << 8);
 
-export const BIOME_NAMES = ['Ocean', 'Beach', 'Plains', 'Forest', 'Desert', 'Taiga', 'Tundra', 'Jungle', 'Mountains'];
+export const BIOME_NAMES = ['Ocean', 'Beach', 'Plains', 'Forest', 'Desert', 'Taiga', 'Tundra', 'Jungle', 'Mountains',
+  'Cherry Grove', 'Meadow', 'Birch Forest', 'Savanna', 'Swamp'];
 export const B_OCEAN = 0, B_BEACH = 1, B_PLAINS = 2, B_FOREST = 3, B_DESERT = 4, B_TAIGA = 5, B_TUNDRA = 6, B_JUNGLE = 7, B_MOUNT = 8;
+export const B_CHERRY = 9, B_MEADOW = 10, B_BIRCH = 11, B_SAVANNA = 12, B_SWAMP = 13;
+export const GRASSY_BIOMES = [B_PLAINS, B_FOREST, B_CHERRY, B_MEADOW, B_BIRCH, B_SWAMP, B_JUNGLE, B_SAVANNA];
+export const LEAFY_BIOMES = [B_FOREST, B_TAIGA, B_JUNGLE, B_CHERRY, B_BIRCH, B_SWAMP];
 
 // extra light attenuation (beyond the base 1/step) for translucent blocks
 function atten(id) {
@@ -45,6 +49,7 @@ export class World {
     this.nCave1 = new Simplex(seed + 505);
     this.nCave2 = new Simplex(seed + 606);
     this.nCheese = new Simplex(seed + 707);
+    this.nWeird = new Simplex(seed + 808);
     this.chunks = new Map();
     this.savedChunks = new Map();   // key -> Uint8Array (modified, unloaded or from disk)
     this.blockEntities = new Map(); // "x,y,z" -> {type, ...}
@@ -140,14 +145,22 @@ export class World {
   biomeAt(x, z, h = null) {
     if (h === null) h = this.heightAt(x, z);
     const [t, hu] = this.climateAt(x, z);
+    const w = this.nWeird.fbm2(x * 0.0026 + 55, z * 0.0026 - 55, 3);
     if (h < SEA - 1) return B_OCEAN;
     if (h <= SEA + 1) return t < 0.22 ? B_TUNDRA : B_BEACH;
     if (h > 86) return B_MOUNT;
     if (t < 0.22) return B_TUNDRA;
     if (t < 0.4) return B_TAIGA;
+    if (t > 0.6 && hu > 0.62 && h < SEA + 5) return B_SWAMP;
     if (t > 0.72 && hu < 0.38) return B_DESERT;
+    if (t > 0.72 && hu < 0.62) return B_SAVANNA;
     if (t > 0.65 && hu > 0.62) return B_JUNGLE;
-    if (hu > 0.45) return B_FOREST;
+    if (hu > 0.45) {
+      if (w > 0.42) return B_CHERRY;
+      if (w < -0.38) return B_BIRCH;
+      return B_FOREST;
+    }
+    if (w > 0.34) return B_MEADOW;
     return B_PLAINS;
   }
 
@@ -283,14 +296,35 @@ export class World {
       else if (biome === B_TAIGA || biome === B_TUNDRA) { treeChance = biome === B_TAIGA ? 0.045 : 0.01; species = 2; }
       else if (biome === B_JUNGLE) { treeChance = 0.09; species = 3; }
       else if (biome === B_MOUNT) { treeChance = 0.004; species = 2; }
+      else if (biome === B_CHERRY) { treeChance = 0.035; species = 4; }
+      else if (biome === B_BIRCH) { treeChance = 0.05; species = 1; }
+      else if (biome === B_SAVANNA) { treeChance = 0.011; species = 5; }
+      else if (biome === B_SWAMP) { treeChance = 0.02; species = 0; }
+      else if (biome === B_MEADOW) { treeChance = 0.0015; species = rng() < 0.5 ? 4 : 0; }
 
       if (inMargin && rng() < treeChance) { this.placeTree(c, rng, lx, h + 1, lz, species); continue; }
       const r = rng();
-      if (biome === B_PLAINS || biome === B_FOREST || biome === B_JUNGLE) {
-        if (r < 0.10) bl[idx(lx, h + 1, lz)] = 38;
-        else if (r < 0.115) bl[idx(lx, h + 1, lz)] = rng() < 0.5 ? 39 : 40;
-        else if (biome === B_FOREST && r < 0.122) bl[idx(lx, h + 1, lz)] = rng() < 0.5 ? 41 : 42;
-      } else if (biome === B_TAIGA && r < 0.03) bl[idx(lx, h + 1, lz)] = 38;
+      const put = id => { bl[idx(lx, h + 1, lz)] = id; };
+      if (biome === B_MEADOW) {
+        if (r < 0.14) put(38);
+        else if (r < 0.24) put([39, 40, 72, 73][rng() * 4 | 0]);
+        else if (r < 0.243) put(74); // pumpkin patch
+      } else if (biome === B_CHERRY) {
+        if (r < 0.09) put(38);
+        else if (r < 0.115) put(rng() < 0.7 ? 72 : 39);
+      } else if (biome === B_SWAMP) {
+        if (r < 0.07) put(38);
+        else if (r < 0.10) put(rng() < 0.5 ? 41 : 42);
+        else if (r < 0.13 && bl[idx(lx, h, lz)] === 2) bl[idx(lx, h, lz)] = 44; // clay patches
+      } else if (biome === B_SAVANNA) {
+        if (r < 0.12) put(38);
+        else if (r < 0.128) put(43);
+      } else if (biome === B_PLAINS || biome === B_FOREST || biome === B_JUNGLE || biome === B_BIRCH) {
+        if (r < 0.10) put(38);
+        else if (r < 0.115) put([39, 40, 73][rng() * 3 | 0]);
+        else if (biome === B_FOREST && r < 0.122) put(rng() < 0.5 ? 41 : 42);
+        else if (biome === B_PLAINS && r < 0.1165) put(74);
+      } else if (biome === B_TAIGA && r < 0.03) put(38);
     }
   }
 
@@ -301,7 +335,35 @@ export class World {
       const i = idx(lx, ly, lz);
       if (bl[i] === AIR || BLOCKS[bl[i]].cross || (BLOCKS[bl[i]].transparent && id !== 0)) bl[i] = id;
     };
-    const [logId, leafId] = [[10, 11], [13, 14], [16, 17], [59, 60]][species];
+    const [logId, leafId] = [[10, 11], [13, 14], [16, 17], [59, 60], [65, 66], [68, 69]][species];
+    if (species === 4) { // cherry: short trunk, wide fluffy blossom canopy
+      const th = 4 + (rng() * 2 | 0);
+      for (let i = 0; i < th; i++) set(x, y + i, z, logId);
+      set(x + (rng() < 0.5 ? 1 : -1), y + th - 1, z, logId); // little branch
+      for (let dy = 0; dy <= 2; dy++) {
+        const r = dy === 1 ? 3 : 2;
+        for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+          if (dx * dx + dz * dz > r * r + 1) continue;
+          if (rng() < 0.08) continue;
+          set(x + dx, y + th - 1 + dy, z + dz, leafId);
+        }
+      }
+      return;
+    }
+    if (species === 5) { // acacia: bare trunk, flat disc canopy
+      const th = 5 + (rng() * 2 | 0);
+      let bx = x, bz = z;
+      for (let i = 0; i < th; i++) {
+        set(bx, y + i, bz, logId);
+        if (i >= 2 && rng() < 0.4) { bx += rng() < 0.5 ? 1 : -1; if (rng() < 0.5) bz += rng() < 0.5 ? 1 : -1; }
+      }
+      for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+        if (Math.abs(dx) + Math.abs(dz) > 4) continue;
+        set(bx + dx, y + th, bz + dz, leafId);
+        if (Math.abs(dx) <= 1 && Math.abs(dz) <= 1) set(bx + dx, y + th + 1, bz + dz, leafId);
+      }
+      return;
+    }
     if (species === 2) { // spruce: conical
       const th = 6 + rng() * 4 | 0;
       for (let i = 0; i < th; i++) set(x, y + i, z, logId);

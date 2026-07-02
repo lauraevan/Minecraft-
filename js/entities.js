@@ -23,65 +23,69 @@ const HOSTILES = ['zombie', 'skeleton', 'spider', 'creeper'];
 const PASSIVES = ['cow', 'pig', 'sheep', 'chicken'];
 
 // ---------------- mob box models ----------------
+// flags: leg (walk swing), arm (swing/flap), head (yaw/pitch pivot), hp (attached to head)
 const L = (s, p, c, opts = {}) => Object.assign({ s, p, c }, opts);
 const MOB_MODELS = {
   cow: [
     L([0.85, 0.65, 1.15], [0, 0.88, 0], [116, 78, 52]),
-    L([0.5, 0.45, 0.5], [0, 1.22, -0.75], [126, 88, 62]),
-    L([0.08, 0.09, 0.05], [-0.13, 1.3, -1.01], [15, 15, 15]), L([0.08, 0.09, 0.05], [0.13, 1.3, -1.01], [15, 15, 15]),
+    L([0.5, 0.45, 0.5], [0, 1.22, -0.75], [126, 88, 62], { head: 1 }),
+    L([0.08, 0.09, 0.05], [-0.13, 1.3, -1.01], [15, 15, 15], { hp: 1 }), L([0.08, 0.09, 0.05], [0.13, 1.3, -1.01], [15, 15, 15], { hp: 1 }),
+    L([0.12, 0.1, 0.1], [-0.3, 1.42, -0.75], [220, 214, 200], { hp: 1 }), L([0.12, 0.1, 0.1], [0.3, 1.42, -0.75], [220, 214, 200], { hp: 1 }),
     L([0.34, 0.2, 0.24], [0, 0.6, 0.6], [225, 210, 200]),
     L([0.22, 0.58, 0.22], [-0.25, 0.58, -0.38], [88, 58, 38], { leg: 1 }), L([0.22, 0.58, 0.22], [0.25, 0.58, -0.38], [88, 58, 38], { leg: 1 }),
     L([0.22, 0.58, 0.22], [-0.25, 0.58, 0.38], [88, 58, 38], { leg: 1 }), L([0.22, 0.58, 0.22], [0.25, 0.58, 0.38], [88, 58, 38], { leg: 1 }),
   ],
   pig: [
     L([0.7, 0.5, 1.05], [0, 0.55, 0], [235, 160, 155]),
-    L([0.45, 0.42, 0.42], [0, 0.62, -0.68], [240, 170, 165]),
-    L([0.18, 0.12, 0.06], [0, 0.55, -0.92], [225, 130, 130]),
-    L([0.06, 0.08, 0.04], [-0.11, 0.7, -0.9], [15, 15, 15]), L([0.06, 0.08, 0.04], [0.11, 0.7, -0.9], [15, 15, 15]),
+    L([0.45, 0.42, 0.42], [0, 0.62, -0.68], [240, 170, 165], { head: 1 }),
+    L([0.18, 0.12, 0.06], [0, 0.55, -0.92], [225, 130, 130], { hp: 1 }),
+    L([0.06, 0.08, 0.04], [-0.11, 0.7, -0.9], [15, 15, 15], { hp: 1 }), L([0.06, 0.08, 0.04], [0.11, 0.7, -0.9], [15, 15, 15], { hp: 1 }),
     L([0.18, 0.32, 0.18], [-0.22, 0.32, -0.32], [225, 150, 145], { leg: 1 }), L([0.18, 0.32, 0.18], [0.22, 0.32, -0.32], [225, 150, 145], { leg: 1 }),
     L([0.18, 0.32, 0.18], [-0.22, 0.32, 0.32], [225, 150, 145], { leg: 1 }), L([0.18, 0.32, 0.18], [0.22, 0.32, 0.32], [225, 150, 145], { leg: 1 }),
   ],
   sheep: [
     L([0.85, 0.65, 1.1], [0, 0.9, 0], [235, 235, 230]),
-    L([0.4, 0.4, 0.45], [0, 1.18, -0.7], [200, 190, 180]),
-    L([0.07, 0.08, 0.05], [-0.11, 1.25, -0.93], [15, 15, 15]), L([0.07, 0.08, 0.05], [0.11, 1.25, -0.93], [15, 15, 15]),
+    L([0.4, 0.4, 0.45], [0, 1.18, -0.7], [200, 190, 180], { head: 1 }),
+    L([0.07, 0.08, 0.05], [-0.11, 1.25, -0.93], [15, 15, 15], { hp: 1 }), L([0.07, 0.08, 0.05], [0.11, 1.25, -0.93], [15, 15, 15], { hp: 1 }),
     L([0.2, 0.6, 0.2], [-0.24, 0.6, -0.36], [190, 185, 178], { leg: 1 }), L([0.2, 0.6, 0.2], [0.24, 0.6, -0.36], [190, 185, 178], { leg: 1 }),
     L([0.2, 0.6, 0.2], [-0.24, 0.6, 0.36], [190, 185, 178], { leg: 1 }), L([0.2, 0.6, 0.2], [0.24, 0.6, 0.36], [190, 185, 178], { leg: 1 }),
   ],
   chicken: [
     L([0.4, 0.42, 0.55], [0, 0.5, 0], [235, 232, 225]),
-    L([0.26, 0.35, 0.26], [0, 0.85, -0.24], [240, 238, 232]),
-    L([0.1, 0.08, 0.1], [0, 0.82, -0.42], [230, 170, 60]),
-    L([0.05, 0.06, 0.04], [-0.08, 0.92, -0.36], [15, 15, 15]), L([0.05, 0.06, 0.04], [0.08, 0.92, -0.36], [15, 15, 15]),
+    L([0.26, 0.35, 0.26], [0, 0.85, -0.24], [240, 238, 232], { head: 1 }),
+    L([0.1, 0.08, 0.1], [0, 0.82, -0.42], [230, 170, 60], { hp: 1 }),
+    L([0.08, 0.1, 0.05], [0, 0.72, -0.4], [200, 60, 50], { hp: 1 }),
+    L([0.05, 0.06, 0.04], [-0.08, 0.92, -0.36], [15, 15, 15], { hp: 1 }), L([0.05, 0.06, 0.04], [0.08, 0.92, -0.36], [15, 15, 15], { hp: 1 }),
+    L([0.06, 0.3, 0.42], [-0.23, 0.6, 0.02], [222, 218, 210], { arm: 1 }), L([0.06, 0.3, 0.42], [0.23, 0.6, 0.02], [222, 218, 210], { arm: 1 }),
     L([0.08, 0.3, 0.08], [-0.1, 0.3, 0.03], [230, 170, 60], { leg: 1 }), L([0.08, 0.3, 0.08], [0.1, 0.3, 0.03], [230, 170, 60], { leg: 1 }),
   ],
   zombie: [
     L([0.5, 0.72, 0.28], [0, 1.16, 0], [66, 122, 74]),
-    L([0.48, 0.48, 0.48], [0, 1.76, 0], [88, 146, 92]),
-    L([0.09, 0.07, 0.05], [-0.12, 1.82, -0.25], [20, 10, 10]), L([0.09, 0.07, 0.05], [0.12, 1.82, -0.25], [20, 10, 10]),
+    L([0.48, 0.48, 0.48], [0, 1.76, 0], [88, 146, 92], { head: 1 }),
+    L([0.09, 0.07, 0.05], [-0.12, 1.82, -0.25], [20, 10, 10], { hp: 1 }), L([0.09, 0.07, 0.05], [0.12, 1.82, -0.25], [20, 10, 10], { hp: 1 }),
     L([0.22, 0.7, 0.22], [-0.36, 1.45, 0], [58, 108, 66], { arm: 1 }), L([0.22, 0.7, 0.22], [0.36, 1.45, 0], [58, 108, 66], { arm: 1 }),
     L([0.23, 0.8, 0.23], [-0.13, 0.8, 0], [46, 66, 96], { leg: 1 }), L([0.23, 0.8, 0.23], [0.13, 0.8, 0], [46, 66, 96], { leg: 1 }),
   ],
   skeleton: [
     L([0.44, 0.7, 0.22], [0, 1.16, 0], [206, 206, 198]),
-    L([0.46, 0.46, 0.46], [0, 1.74, 0], [220, 220, 212]),
-    L([0.09, 0.09, 0.05], [-0.12, 1.8, -0.24], [30, 30, 30]), L([0.09, 0.09, 0.05], [0.12, 1.8, -0.24], [30, 30, 30]),
+    L([0.46, 0.46, 0.46], [0, 1.74, 0], [220, 220, 212], { head: 1 }),
+    L([0.09, 0.09, 0.05], [-0.12, 1.8, -0.24], [30, 30, 30], { hp: 1 }), L([0.09, 0.09, 0.05], [0.12, 1.8, -0.24], [30, 30, 30], { hp: 1 }),
     L([0.14, 0.68, 0.14], [-0.32, 1.45, 0], [198, 198, 190], { arm: 1 }), L([0.14, 0.68, 0.14], [0.32, 1.45, 0], [198, 198, 190], { arm: 1 }),
     L([0.15, 0.8, 0.15], [-0.12, 0.8, 0], [190, 190, 182], { leg: 1 }), L([0.15, 0.8, 0.15], [0.12, 0.8, 0], [190, 190, 182], { leg: 1 }),
   ],
   spider: [
     L([0.9, 0.42, 1.1], [0, 0.5, 0.15], [40, 34, 32]),
-    L([0.55, 0.4, 0.55], [0, 0.42, -0.6], [52, 44, 40]),
-    L([0.09, 0.08, 0.04], [-0.14, 0.5, -0.89], [160, 30, 30]), L([0.09, 0.08, 0.04], [0.14, 0.5, -0.89], [160, 30, 30]),
-    L([0.08, 0.08, 0.04], [-0.26, 0.44, -0.89], [120, 20, 20]), L([0.08, 0.08, 0.04], [0.26, 0.44, -0.89], [120, 20, 20]),
+    L([0.55, 0.4, 0.55], [0, 0.42, -0.6], [52, 44, 40], { head: 1 }),
+    L([0.09, 0.08, 0.04], [-0.14, 0.5, -0.89], [160, 30, 30], { hp: 1 }), L([0.09, 0.08, 0.04], [0.14, 0.5, -0.89], [160, 30, 30], { hp: 1 }),
+    L([0.08, 0.08, 0.04], [-0.26, 0.44, -0.89], [120, 20, 20], { hp: 1 }), L([0.08, 0.08, 0.04], [0.26, 0.44, -0.89], [120, 20, 20], { hp: 1 }),
     L([1.7, 0.09, 0.09], [0, 0.45, -0.2], [35, 30, 28], { leg: 1 }), L([1.7, 0.09, 0.09], [0, 0.4, 0.1], [35, 30, 28], { leg: 1 }),
     L([1.7, 0.09, 0.09], [0, 0.45, 0.4], [35, 30, 28], { leg: 1 }), L([1.7, 0.09, 0.09], [0, 0.4, 0.65], [35, 30, 28], { leg: 1 }),
   ],
   creeper: [
     L([0.5, 0.85, 0.3], [0, 0.9, 0], [96, 168, 84]),
-    L([0.48, 0.48, 0.48], [0, 1.55, 0], [104, 178, 92]),
-    L([0.1, 0.12, 0.05], [-0.12, 1.62, -0.25], [15, 15, 15]), L([0.1, 0.12, 0.05], [0.12, 1.62, -0.25], [15, 15, 15]),
-    L([0.09, 0.16, 0.05], [0, 1.46, -0.25], [15, 15, 15]),
+    L([0.48, 0.48, 0.48], [0, 1.55, 0], [104, 178, 92], { head: 1 }),
+    L([0.1, 0.12, 0.05], [-0.12, 1.62, -0.25], [15, 15, 15], { hp: 1 }), L([0.1, 0.12, 0.05], [0.12, 1.62, -0.25], [15, 15, 15], { hp: 1 }),
+    L([0.09, 0.16, 0.05], [0, 1.46, -0.25], [15, 15, 15], { hp: 1 }),
     L([0.2, 0.5, 0.24], [-0.15, 0.25, -0.2], [86, 152, 76], { leg: 1 }), L([0.2, 0.5, 0.24], [0.15, 0.25, -0.2], [86, 152, 76], { leg: 1 }),
     L([0.2, 0.5, 0.24], [-0.15, 0.25, 0.2], [86, 152, 76], { leg: 1 }), L([0.2, 0.5, 0.24], [0.15, 0.25, 0.2], [86, 152, 76], { leg: 1 }),
   ],
@@ -109,19 +113,33 @@ function noiseTexture(rgb) {
 function buildMobModel(type) {
   const group = new THREE.Group();
   const legs = [], arms = [], mats = [];
-  for (const part of MOB_MODELS[type]) {
+  const parts = MOB_MODELS[type];
+  const headPart = parts.find(p => p.head);
+  let head = null;
+  if (headPart) {
+    head = new THREE.Group();
+    head.position.set(headPart.p[0], headPart.p[1], headPart.p[2]);
+    group.add(head);
+  }
+  for (const part of parts) {
     const geo = new THREE.BoxGeometry(part.s[0], part.s[1], part.s[2]);
     if (part.leg || part.arm) geo.translate(0, -part.s[1] / 2, 0);
     const mat = new THREE.MeshBasicMaterial({ map: noiseTexture(part.c) });
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(part.p[0], part.p[1] + ((part.leg || part.arm) ? part.s[1] / 2 : 0), part.p[2]);
-    group.add(mesh);
+    if (head && (part.head || part.hp)) {
+      // position relative to the head pivot so the whole face turns together
+      mesh.position.set(part.p[0] - headPart.p[0], part.p[1] - headPart.p[1], part.p[2] - headPart.p[2]);
+      head.add(mesh);
+    } else {
+      mesh.position.set(part.p[0], part.p[1] + ((part.leg || part.arm) ? part.s[1] / 2 : 0), part.p[2]);
+      group.add(mesh);
+    }
     mats.push(mat);
     if (part.leg) legs.push(mesh);
     if (part.arm) arms.push(mesh);
   }
   if (type === 'zombie') for (const a of arms) a.rotation.x = -1.35;
-  return { group, legs, arms, mats };
+  return { group, legs, arms, head, mats };
 }
 
 // ---------------- sprite textures for drops ----------------
@@ -184,19 +202,26 @@ export class EntityManager {
   }
 
   // ---------------- spawning ----------------
-  spawnMob(type, x, y, z) {
+  spawnMob(type, x, y, z, opts = {}) {
     const def = MOB_TYPES[type];
     const model = buildMobModel(type);
     this.scene.add(model.group);
+    const yaw = Math.random() * Math.PI * 2;
     const mob = {
       type, def, model,
       pos: { x, y, z }, vel: { x: 0, y: 0, z: 0 },
-      w: def.w, h: def.h, yaw: Math.random() * Math.PI * 2,
+      w: def.w, h: def.h, yaw, targetYaw: yaw,
       hp: def.hp, onGround: false, stepUp: true,
       state: 'idle', stateTimer: Math.random() * 3, attackTimer: 0,
       hurtTimer: 0, burnAcc: 0, fuse: 0, walkPhase: 0, shootTimer: 1 + Math.random(),
-      aggro: false,
+      aggro: false, baby: !!opts.baby,
+      callTimer: 4 + Math.random() * 14,
+      grazeTimer: 0, headYaw: 0, headPitch: 0, age: 0,
     };
+    if (mob.baby) {
+      mob.w *= 0.55; mob.h *= 0.55; mob.hp = Math.ceil(def.hp / 2);
+      model.group.scale.setScalar(0.55);
+    }
     this.mobs.push(mob);
     return mob;
   }
@@ -233,6 +258,15 @@ export class EntityManager {
     }
   }
   blockParticles(x, y, z, blockId, count = 12) { this.addParticles(x, y, z, avgColor(blockId), count); }
+
+  addFirefly(x, y, z) {
+    if (this.particles.length >= MAX_PARTICLES - 20) return;
+    this.particles.push({
+      x, y, z, vx: 0, vy: 0, vz: 0,
+      life: 6 + Math.random() * 8, fly: true, t: Math.random() * 20, seed: Math.random() * 10,
+      r: 0.95, g: 0.9, b: 0.35,
+    });
+  }
 
   explode(x, y, z, radius, player) {
     this.audio.play('explosion', { x, y, z });
@@ -291,7 +325,8 @@ export class EntityManager {
       mob.dead = true;
       if (isPlayerHit) player.stats.kills++;
       this.addParticles(mob.pos.x, mob.pos.y + mob.h / 2, mob.pos.z, [0.8, 0.2, 0.2], 14);
-      for (const d of mob.def.drops(Math.random)) if (d.n > 0) this.dropItem(mob.pos.x, mob.pos.y + 0.4, mob.pos.z, d);
+      if (!mob.baby) for (const d of mob.def.drops(Math.random)) if (d.n > 0) this.dropItem(mob.pos.x, mob.pos.y + 0.4, mob.pos.z, d);
+      if (this.onMobKilled) this.onMobKilled(mob, isPlayerHit);
     }
   }
 
@@ -337,7 +372,8 @@ export class EntityManager {
           const type = PASSIVES[Math.random() * PASSIVES.length | 0];
           const n = 2 + (Math.random() * 2 | 0);
           for (let i = 0; i < n; i++)
-            this.spawnMob(type, x + 0.5 + (Math.random() - 0.5) * 3, y + 1, z + 0.5 + (Math.random() - 0.5) * 3);
+            this.spawnMob(type, x + 0.5 + (Math.random() - 0.5) * 3, y + 1, z + 0.5 + (Math.random() - 0.5) * 3,
+              { baby: i > 0 && Math.random() < 0.3 });
         }
       }
     }
@@ -362,11 +398,20 @@ export class EntityManager {
       const hostile = HOSTILES.includes(m.type);
       const angry = hostile && !player.dead && distP < 18 &&
         (!m.def.neutralDay || m.aggro || dayFactor < 0.4);
+      const yawToPlayer = Math.atan2(-(player.pos.x - m.pos.x), -(player.pos.z - m.pos.z));
+      m.age += dt;
+
+      // ambient calls
+      m.callTimer -= dt;
+      if (m.callTimer <= 0) {
+        m.callTimer = 7 + Math.random() * 16;
+        if (distP < 26) this.audio.mobCall(m.type, m.pos, angry);
+      }
 
       let moveSpeed = 0;
       if (m.def.ranged && angry) {
         // skeleton: kite + shoot
-        m.yaw = Math.atan2(-(player.pos.x - m.pos.x), -(player.pos.z - m.pos.z));
+        m.targetYaw = yawToPlayer;
         if (distP > 10) moveSpeed = m.def.speed;
         else if (distP < 5) moveSpeed = -m.def.speed * 0.8;
         m.shootTimer -= dt;
@@ -380,7 +425,7 @@ export class EntityManager {
         }
       } else if (angry) {
         m.state = 'chase';
-        m.yaw = Math.atan2(-(player.pos.x - m.pos.x), -(player.pos.z - m.pos.z));
+        m.targetYaw = yawToPlayer;
         moveSpeed = m.def.speed;
         if (m.def.exploder) {
           if (distP < 3) {
@@ -398,27 +443,65 @@ export class EntityManager {
           player.vel.y = Math.max(player.vel.y, 4);
         }
       } else if (m.state === 'flee' && m.stateTimer > 0) {
-        m.yaw = Math.atan2(-(m.pos.x - (m.fleeFrom?.x ?? player.pos.x)), -(m.pos.z - (m.fleeFrom?.z ?? player.pos.z))) + Math.PI;
+        m.targetYaw = Math.atan2(-(m.pos.x - (m.fleeFrom?.x ?? player.pos.x)), -(m.pos.z - (m.fleeFrom?.z ?? player.pos.z))) + Math.PI;
         moveSpeed = m.def.speed * 1.6;
+      } else if (m.state === 'graze' && m.stateTimer > 0) {
+        moveSpeed = 0;
+        if (m.stateTimer < dt * 2 && m.type === 'sheep') {
+          // sheep actually eat the grass
+          const gx = Math.floor(m.pos.x), gy = Math.floor(m.pos.y) - 1, gz = Math.floor(m.pos.z);
+          if (w.getBlock(gx, gy, gz) === 2 && Math.random() < 0.35) {
+            w.setBlock(gx, gy, gz, 3);
+            this.addParticles(m.pos.x, m.pos.y + 0.3, m.pos.z, [0.4, 0.65, 0.27], 6, 1.2);
+          }
+        }
       } else {
         if (m.stateTimer <= 0) {
-          if (m.state === 'wander' || Math.random() < 0.4) { m.state = 'idle'; m.stateTimer = 2 + Math.random() * 4; }
-          else { m.state = 'wander'; m.stateTimer = 2 + Math.random() * 3; m.yaw = Math.random() * Math.PI * 2; }
+          const r = Math.random();
+          if (m.def.passive && r < 0.25) {
+            m.state = 'graze'; m.stateTimer = 1.5 + Math.random() * 2.5;
+          } else if (m.state === 'wander' || r < 0.55) {
+            m.state = 'idle'; m.stateTimer = 2 + Math.random() * 4;
+          } else {
+            m.state = 'wander'; m.stateTimer = 2 + Math.random() * 3;
+            let wyaw = Math.random() * Math.PI * 2;
+            // gentle herding: passives drift toward a nearby friend
+            if (m.def.passive) {
+              for (const o of this.mobs) {
+                if (o !== m && !o.dead && o.type === m.type) {
+                  const od = Math.hypot(o.pos.x - m.pos.x, o.pos.z - m.pos.z);
+                  if (od > 4 && od < 14 && Math.random() < 0.5) {
+                    wyaw = Math.atan2(-(o.pos.x - m.pos.x), -(o.pos.z - m.pos.z));
+                    break;
+                  }
+                }
+              }
+            }
+            m.targetYaw = wyaw;
+          }
         }
         if (m.state === 'wander') moveSpeed = m.def.speed * 0.45;
       }
+      if (m.baby) moveSpeed *= 1.2;
+
+      // smooth turning toward targetYaw
+      let dy2 = m.targetYaw - m.yaw;
+      while (dy2 > Math.PI) dy2 -= Math.PI * 2;
+      while (dy2 < -Math.PI) dy2 += Math.PI * 2;
+      m.yaw += dy2 * Math.min(1, (angry ? 10 : 5) * dt);
 
       // steering → velocity
       const vx = -Math.sin(m.yaw) * moveSpeed, vz = -Math.cos(m.yaw) * moveSpeed;
       m.vel.x += (vx - m.vel.x) * Math.min(1, 8 * dt);
       m.vel.z += (vz - m.vel.z) * Math.min(1, 8 * dt);
 
-      // water / gravity
+      // water / gravity (chickens flutter down slowly)
       const inWater = w.getBlock(Math.floor(m.pos.x), Math.floor(m.pos.y + 0.3), Math.floor(m.pos.z)) === 8;
+      const fluttering = m.type === 'chicken' && !m.onGround && m.vel.y < -0.5 && !inWater;
       if (inWater) { m.vel.y += 22 * dt; m.vel.y = clamp(m.vel.y, -2, 2.5); }
       else m.vel.y -= 32 * dt;
+      if (fluttering) m.vel.y = Math.max(m.vel.y, -1.6);
 
-      const wasWall = m.hitWall;
       collideEntity(w, m, dt);
       // spiders climb, others hop
       if (m.hitWall && moveSpeed > 0) {
@@ -441,11 +524,42 @@ export class EntityManager {
       g.position.set(m.pos.x, m.pos.y, m.pos.z);
       g.rotation.y = m.yaw;
       const speed2 = Math.hypot(m.vel.x, m.vel.z);
-      m.walkPhase += speed2 * dt * 3.2;
+      m.walkPhase += speed2 * dt * (m.baby ? 5 : 3.2);
       m.model.legs.forEach((leg, i) => {
         if (m.type === 'spider') leg.rotation.z = Math.sin(m.walkPhase + i * 1.7) * 0.25;
         else leg.rotation.x = Math.sin(m.walkPhase + (i % 2) * Math.PI) * clamp(speed2, 0, 1.4) * 0.7;
       });
+      // arms: chicken wings flap, zombie arms bob, skeleton arms sway
+      m.model.arms.forEach((arm, i) => {
+        const side = i === 0 ? 1 : -1;
+        if (m.type === 'chicken') {
+          arm.rotation.z = fluttering ? side * (0.5 + Math.sin(m.age * 30) * 0.6) : side * 0.06;
+        } else if (m.type === 'zombie') {
+          arm.rotation.x = -1.35 + Math.sin(m.age * 3 + i * 2) * 0.12 + Math.sin(m.walkPhase + i * Math.PI) * 0.15;
+        } else {
+          arm.rotation.x = Math.sin(m.walkPhase + (i % 2) * Math.PI) * clamp(speed2, 0, 1.4) * 0.5;
+        }
+      });
+      // head: track the player when close, dip while grazing, idle wobble
+      const head = m.model.head;
+      if (head) {
+        let wantYaw = 0, wantPitch = 0;
+        if (m.state === 'graze') {
+          wantPitch = 0.85 + (m.type === 'chicken' ? Math.sin(m.age * 14) * 0.25 : Math.sin(m.age * 3) * 0.06);
+        } else if (distP < 7 && (m.def.passive || angry || m.def.exploder)) {
+          let hd = yawToPlayer - m.yaw;
+          while (hd > Math.PI) hd -= Math.PI * 2;
+          while (hd < -Math.PI) hd += Math.PI * 2;
+          wantYaw = clamp(hd, -1.1, 1.1);
+          wantPitch = clamp(-(player.pos.y + 1.4 - (m.pos.y + m.h * 0.85)) * 0.35, -0.55, 0.55);
+        } else if (m.state === 'idle') {
+          wantYaw = Math.sin(m.age * 0.7 + m.walkPhase) * 0.35;
+        }
+        m.headYaw += (wantYaw - m.headYaw) * Math.min(1, 7 * dt);
+        m.headPitch += (wantPitch - m.headPitch) * Math.min(1, 7 * dt);
+        head.rotation.y = m.headYaw;
+        head.rotation.x = m.headPitch;
+      }
       // light + hurt tint
       const ll = Math.max(w.getLight(Math.floor(m.pos.x), Math.floor(m.pos.y + 1), Math.floor(m.pos.z)),
         w.getSky(Math.floor(m.pos.x), Math.floor(m.pos.y + 1), Math.floor(m.pos.z)) * dayFactor);
@@ -531,11 +645,21 @@ export class EntityManager {
     for (const p of this.particles) {
       p.life -= dt;
       if (p.life <= 0) continue;
-      p.vy -= 14 * dt;
+      let blink = 1;
+      if (p.fly) {
+        // firefly: gravity-free wandering glow with a slow blink
+        p.t += dt;
+        p.vx = Math.sin(p.t * 0.9 + p.seed) * 0.5;
+        p.vz = Math.cos(p.t * 0.7 + p.seed * 2) * 0.5;
+        p.vy = Math.sin(p.t * 1.3 + p.seed) * 0.3;
+        blink = 0.15 + 0.85 * Math.max(0, Math.sin(p.t * 2.2 + p.seed * 3));
+      } else {
+        p.vy -= 14 * dt;
+      }
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
-      if (BLOCKS[w.getBlock(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z))].solid) { p.vy = 0; p.vx *= 0.6; p.vz *= 0.6; p.y = Math.ceil(p.y * 100) / 100; }
+      if (!p.fly && BLOCKS[w.getBlock(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z))].solid) { p.vy = 0; p.vx *= 0.6; p.vz *= 0.6; p.y = Math.ceil(p.y * 100) / 100; }
       this.pPos[alive * 3] = p.x; this.pPos[alive * 3 + 1] = p.y; this.pPos[alive * 3 + 2] = p.z;
-      this.pCol[alive * 3] = p.r; this.pCol[alive * 3 + 1] = p.g; this.pCol[alive * 3 + 2] = p.b;
+      this.pCol[alive * 3] = p.r * blink; this.pCol[alive * 3 + 1] = p.g * blink; this.pCol[alive * 3 + 2] = p.b * blink;
       alive++;
     }
     this.particles = this.particles.filter(p => p.life > 0);

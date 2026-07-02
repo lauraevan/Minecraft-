@@ -3,8 +3,11 @@
 // ---------------------------------------------------------------
 import { BLOCKS, ITEMS, defOf, matchRecipe } from './blocks.js';
 import { iconFor, hudIcon } from './textures.js';
+import { userHudIcon, userXpBar } from './assets.js';
 
 const $ = id => document.getElementById(id);
+// prefer the player's hand-drawn HUD art, fall back to procedural icons
+const icon = name => userHudIcon(name) || hudIcon(name);
 
 export class UI {
   constructor(player, audio) {
@@ -25,11 +28,15 @@ export class UI {
     this.buildHotbar();
     this.buildBars();
 
-    document.addEventListener('mousemove', e => {
+    const moveCursor = (x, y) => {
       const c = $('cursorstack');
-      c.style.left = (e.clientX - 19) + 'px';
-      c.style.top = (e.clientY - 19) + 'px';
-    });
+      c.style.left = (x - 19) + 'px';
+      c.style.top = (y - 19) + 'px';
+    };
+    document.addEventListener('mousemove', e => moveCursor(e.clientX, e.clientY));
+    document.addEventListener('touchmove', e => {
+      if (this.screen) moveCursor(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
     $('invscreen').addEventListener('mousedown', e => {
       if (e.target === $('invscreen') && this.cursor) {
         if (this.onDrop) this.onDrop(this.cursor);
@@ -46,18 +53,25 @@ export class UI {
     for (let i = 0; i < 9; i++) {
       const d = document.createElement('div');
       d.className = 'slot';
+      d.addEventListener('pointerdown', () => { this.player.sel = i; });
       hb.appendChild(d);
     }
   }
   buildBars() {
-    for (const [id, icon, n] of [['hearts', 'heart', 10], ['hungerbar', 'food', 10], ['armorbar', 'armor', 10], ['airbar', 'bubble', 10]]) {
+    for (const [id, name, n] of [['hearts', 'heart', 10], ['hungerbar', 'food', 10], ['armorbar', 'armor', 10], ['airbar', 'bubble', 10]]) {
       const bar = $(id); bar.innerHTML = '';
       for (let i = 0; i < n; i++) {
         const img = document.createElement('img');
-        img.src = hudIcon(icon);
+        img.src = icon(name);
         bar.appendChild(img);
       }
     }
+    // XP bar drawn from the player's own icons sheet (fallback: plain CSS bar)
+    const xp = $('xpbar');
+    const art = userXpBar();
+    xp.innerHTML = art
+      ? `<img class="xpempty" src="${art.empty}"><div class="xpclip"><img class="xpfill" src="${art.fill}"></div><span id="xplevel"></span>`
+      : `<div class="xpempty css"></div><div class="xpclip css"><div class="xpfill css"></div></div><span id="xplevel"></span>`;
   }
 
   updateHUD(dt) {
@@ -83,17 +97,23 @@ export class UI {
     const hearts = $('hearts').children;
     for (let i = 0; i < 10; i++) {
       const v = p.health - i * 2;
-      hearts[i].src = hudIcon(v >= 2 ? 'heart' : v >= 1 ? 'heart_half' : 'heart_empty');
+      hearts[i].src = icon(v >= 2 ? "heart" : v >= 1 ? "heart_half" : "heart_empty");
     }
     const hunger = $('hungerbar').children;
-    for (let i = 0; i < 10; i++) hunger[9 - i].src = hudIcon(p.hunger - i * 2 >= 1 ? 'food' : 'food_empty');
+    for (let i = 0; i < 10; i++) hunger[9 - i].src = icon(p.hunger - i * 2 >= 1 ? "food" : "food_empty");
     const ap = p.armorPoints();
     const armor = $('armorbar').children;
     $('armorbar').style.display = ap > 0 ? 'flex' : 'none';
-    for (let i = 0; i < 10; i++) armor[i].src = hudIcon(ap - i * 2 >= 1 ? 'armor' : 'armor_empty');
+    for (let i = 0; i < 10; i++) armor[i].src = icon(ap - i * 2 >= 1 ? "armor" : "armor_empty");
     const air = $('airbar').children;
     $('airbar').style.display = p.headInWater || p.air < 10 ? 'flex' : 'none';
     for (let i = 0; i < 10; i++) air[9 - i].style.opacity = p.air - i >= 0.5 ? 1 : 0;
+
+    // xp
+    const clip = $('xpbar').querySelector('.xpclip');
+    if (clip) clip.style.width = (p.xp / p.xpNeed() * 100).toFixed(1) + '%';
+    const lvl = $('xplevel');
+    if (lvl) { lvl.textContent = p.level > 0 ? p.level : ''; }
 
     $('vignette').style.opacity = Math.min(0.9, p.damageFlash + (p.health <= 4 ? 0.25 : 0));
 
@@ -292,6 +312,7 @@ export class UI {
     if (zone === 'furnOut') {
       const s = this.getZone(zone, idx);
       if (!s) return;
+      p.addXP(Math.min(s.n, 3)); // smelting experience
       if (shift) { const left = p.addItem(s); this.setZone(zone, idx, left > 0 ? { ...s, n: left } : null); }
       else if (!this.cursor) { this.cursor = s; this.setZone(zone, idx, null); }
       else if (this.cursor.id === s.id) {

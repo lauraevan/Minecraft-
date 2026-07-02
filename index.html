@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Crafter Mine</title>
 <link rel="stylesheet" href="css/style.css">
 <script type="importmap">
@@ -21,6 +21,7 @@
     <div id="hungerbar" class="barrow right"></div>
     <div id="airbar" class="barrow right"></div>
   </div>
+  <div id="xpbar"></div>
   <div id="hotbar"></div>
   <div id="itemname"></div>
   <div id="debug" class="hidden"></div>
@@ -60,6 +61,7 @@
   <div class="menubox">
     <button id="btn-resume" class="mbtn">Back to Game</button>
     <button id="btn-save" class="mbtn">Save World</button>
+    <div class="setting"><label>Shaders <span id="shader-val"></span></label><input id="set-shader" type="range" min="0" max="2" step="1"></div>
     <div class="setting"><label>Render distance <span id="rd-val"></span></label><input id="set-rd" type="range" min="2" max="8" step="1"></div>
     <div class="setting"><label>Field of view <span id="fov-val"></span></label><input id="set-fov" type="range" min="50" max="110" step="1"></div>
     <div class="setting"><label>Mouse sensitivity <span id="sens-val"></span></label><input id="set-sens" type="range" min="1" max="20" step="1"></div>

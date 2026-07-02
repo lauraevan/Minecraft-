@@ -41,7 +41,7 @@ export async function saveWorld(world, player, entities) {
         pos: player.pos, yaw: player.yaw, pitch: player.pitch,
         health: player.health, hunger: player.hunger, saturation: player.saturation,
         inventory: player.inventory, armor: player.armor, sel: player.sel,
-        stats: player.stats,
+        stats: player.stats, xp: player.xp, level: player.level,
       },
       blockEntities,
       mobs: entities ? entities.serialize() : [],
