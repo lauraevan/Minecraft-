@@ -17,11 +17,15 @@ export async function loadUserArt() {
     cv.width = img.width; cv.height = img.height;
     cv.getContext('2d').drawImage(img, 0, 0);
     sheet = cv;
-    await Promise.all(['gui_inv', 'gui_craft', 'gui_enchant', 'gui_trade', 'logo'].map(async n => {
+    await Promise.all(['gui_inv', 'gui_craft', 'gui_enchant', 'gui_trade', 'gui_search', 'particles', 'snow', 'logo'].map(async n => {
       try {
         const im = new Image(); im.src = 'assets/' + n + '.png'; await im.decode(); guiImgs[n] = im;
       } catch (e) { }
     }));
+    if (guiImgs.snow) {
+      const { setTextureOverride } = await import('./textures.js');
+      setTextureOverride('snow', guiImgs.snow); // player-drawn snow texture
+    }
   } catch (e) {
     console.warn('user art not available, using procedural HUD icons', e);
     sheet = null;
@@ -77,7 +81,9 @@ export function userXpBar() {
 // ---------------- GUI sheets (hand-drawn, standard 18px slot grid) ----------------
 const ROW = y => Array.from({ length: 9 }, (_, i) => [8 + 18 * i, y]);
 const INV_GRID = [...ROW(84), ...ROW(102), ...ROW(120)];
+const ROWX = (x0, y) => Array.from({ length: 9 }, (_, i) => [x0 + 18 * i, y]);
 export const GUI_LAYOUT = {
+  gui_search: { pal: [].concat(...[18, 36, 54, 72, 90].map(y => ROWX(9, y))), hot: ROWX(9, 112), search: [112, 4, 122, 13] },
   gui_inv: { armor: [[8, 8], [8, 26], [8, 44], [8, 62]], craft: [[88, 26], [106, 26], [88, 44], [106, 44]], result: [[144, 36]], inv: INV_GRID, hot: ROW(142) },
   gui_craft: { craft: [[62, 17], [80, 17], [98, 17], [62, 35], [80, 35], [98, 35], [62, 53], [80, 53], [98, 53]], result: [[130, 35]], inv: INV_GRID, hot: ROW(142) },
   gui_enchant: { input: [[25, 47]], options: [[62, 12], [62, 30], [62, 48]], inv: INV_GRID, hot: ROW(142) },
@@ -112,4 +118,33 @@ export function effectIcon(i) {
     }
   }
   return effectIcons[i % Math.max(1, effectIcons.length)] || null;
+}
+
+// particle sprite: a drawn circle from the particles sheet (fallback: null)
+let particleUrl = null;
+export function particleSprite() {
+  if (particleUrl !== null) return particleUrl || null;
+  particleUrl = '';
+  const im = guiImgs.particles;
+  if (!im) return null;
+  const cv = document.createElement('canvas'); cv.width = im.width; cv.height = im.height;
+  const cx = cv.getContext('2d'); cx.drawImage(im, 0, 0);
+  const d = cx.getImageData(0, 0, im.width, im.height).data;
+  // find an 8×8 tile in the circle-rows region with a ring-like fill
+  for (let ty = 56; ty + 8 <= im.height; ty += 8) for (let tx = 0; tx + 8 <= im.width; tx += 8) {
+    let n = 0;
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) if (d[((ty + y) * im.width + tx + x) * 4 + 3] > 100) n++;
+    if (n >= 12 && n <= 44) {
+      const oc = document.createElement('canvas'); oc.width = oc.height = 16;
+      const ocx = oc.getContext('2d');
+      ocx.imageSmoothingEnabled = false;
+      // draw white so vertex colors tint it
+      ocx.drawImage(im, tx, ty, 8, 8, 0, 0, 16, 16);
+      ocx.globalCompositeOperation = 'source-in';
+      ocx.fillStyle = '#fff'; ocx.fillRect(0, 0, 16, 16);
+      particleUrl = oc.toDataURL();
+      return particleUrl;
+    }
+  }
+  return null;
 }

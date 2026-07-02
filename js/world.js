@@ -54,6 +54,7 @@ export class World {
     this.savedChunks = new Map();   // key -> Uint8Array (modified, unloaded or from disk)
     this.blockEntities = new Map(); // "x,y,z" -> {type, ...}
     this.dirty = new Set();         // chunk keys needing remesh
+    this.pendingMobs = [];          // mobs queued by worldgen (village folk)
     this.time = 6000;               // 0-24000, start at morning
     this.spawn = null;
   }
@@ -235,6 +236,9 @@ export class World {
     this.placeOres(c, rng);
     this.placeDecorations(c, rng, heights, biomes);
     if (rng() < 0.04) this.placeDungeon(c, rng);
+    // village zones: clustered houses, styled per biome
+    const vNoise = this.nWeird.noise2(c.cx * 0.09 + 555, c.cz * 0.09 - 555);
+    if (vNoise > 0.52 && rng() < 0.5) this.placeHouse(c, rng, heights, biomes);
     c.generated = true;
   }
 
@@ -403,6 +407,74 @@ export class World {
       }
       set(x, y + th + 1, z, leafId);
     }
+  }
+
+  placeHouse(c, rng, heights, biomes) {
+    const bl = c.blocks;
+    const x0 = 4 + (rng() * 3 | 0), z0 = 4 + (rng() * 3 | 0), W = 7, D = 6;
+    const biome = biomes[(x0 + 3) + (z0 + 3) * 16];
+    // biome material variants: [plank, log/frame, window]
+    const MATS = {
+      [B_DESERT]: [33, 33, 31], [B_SAVANNA]: [70, 68, 31], [B_TAIGA]: [18, 16, 31],
+      [B_TUNDRA]: [18, 16, 31], [B_CHERRY]: [67, 65, 31], [B_BIRCH]: [15, 13, 31],
+      [B_PLAINS]: [12, 10, 31], [B_MEADOW]: [12, 10, 31], [B_FOREST]: [12, 10, 31],
+    };
+    const mat = MATS[biome];
+    if (!mat) return;
+    // flat enough?
+    let hMin = 999, hMax = 0;
+    for (let dx = 0; dx < W; dx++) for (let dz = 0; dz < D; dz++) {
+      const h = heights[(x0 + dx) + (z0 + dz) * 16];
+      if (h < hMin) hMin = h; if (h > hMax) hMax = h;
+    }
+    if (hMax - hMin > 3 || hMin <= SEA) return;
+    const fy = hMax; // floor level
+    const [plank, frame, glass] = mat;
+    for (let dx = 0; dx < W; dx++) for (let dz = 0; dz < D; dz++) {
+      const x = x0 + dx, z = z0 + dz;
+      // foundation down to terrain + floor
+      for (let y = heights[x + z * 16]; y < fy; y++) bl[idx(x, y, z)] = 3;
+      bl[idx(x, fy, z)] = plank;
+      // clear interior + walls
+      for (let y = fy + 1; y <= fy + 4; y++) {
+        const edge = dx === 0 || dx === W - 1 || dz === 0 || dz === D - 1;
+        const corner = (dx === 0 || dx === W - 1) && (dz === 0 || dz === D - 1);
+        let id = AIR;
+        if (y === fy + 4) id = plank; // roof
+        else if (corner) id = frame;
+        else if (edge) {
+          id = plank;
+          if (y === fy + 2 && ((dx === 0 || dx === W - 1) ? dz % 2 === 1 : dx % 2 === 1) && rng() < 0.6) id = glass;
+        }
+        bl[idx(x, y, z)] = id;
+      }
+      // clear above roof so trees don't clip in
+      for (let y = fy + 5; y <= fy + 6; y++) bl[idx(x, y, z)] = AIR;
+    }
+    // door gap (front, middle)
+    bl[idx(x0 + 3, fy + 1, z0)] = AIR;
+    bl[idx(x0 + 3, fy + 2, z0)] = AIR;
+    // furnishings
+    bl[idx(x0 + 1, fy + 1, z0 + D - 2)] = 30;                          // torch
+    bl[idx(x0 + W - 2, fy + 1, z0 + D - 2)] = rng() < 0.5 ? 26 : 27;   // crafting/furnace
+    if (rng() < 0.5) bl[idx(x0 + 1, fy + 1, z0 + 1)] = 49;             // bed
+    if (rng() < 0.45) {
+      bl[idx(x0 + W - 2, fy + 1, z0 + 1)] = 29;                        // chest with goodies
+      const wk = (c.cx * 16 + x0 + W - 2) + ',' + (fy + 1) + ',' + (c.cz * 16 + z0 + 1);
+      if (!this.blockEntities.has(wk)) {
+        const loot = new Array(27).fill(null);
+        const table = [[287, 1, 3], [286, 2, 5], [285, 1, 4], [257, 2, 5], [269, 1, 3], [265, 1, 2]];
+        for (let i = 0; i < 3 + rng() * 3; i++) {
+          const [id, lo, hi] = table[rng() * table.length | 0];
+          loot[rng() * 27 | 0] = { id, n: lo + rng() * (hi - lo) | 0 };
+        }
+        this.blockEntities.set(wk, { type: 'chest', slots: loot });
+      }
+    }
+    // the residents
+    const n = 1 + (rng() * 2 | 0);
+    for (let i = 0; i < n; i++)
+      this.pendingMobs.push({ type: 'villager', x: c.cx * 16 + x0 + 2 + i, y: fy + 1, z: c.cz * 16 + z0 + 2 });
   }
 
   placeDungeon(c, rng) {

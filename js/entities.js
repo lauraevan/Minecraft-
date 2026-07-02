@@ -223,6 +223,7 @@ export class EntityManager {
     this.pGeo.setAttribute('color', new THREE.BufferAttribute(this.pCol, 3));
     this.particles = [];
     const pMat = new THREE.PointsMaterial({ size: 0.14, vertexColors: true, sizeAttenuation: true });
+    this.pMat = pMat;
     this.pMesh = new THREE.Points(this.pGeo, pMat);
     this.pMesh.frustumCulled = false;
     scene.add(this.pMesh);
@@ -289,6 +290,28 @@ export class EntityManager {
     }
   }
   blockParticles(x, y, z, blockId, count = 12) { this.addParticles(x, y, z, avgColor(blockId), count); }
+
+  setParticleTexture(url) {
+    // player-drawn particle sprite (circles from particles.png)
+    const img = new Image();
+    img.src = url;
+    const tex = new THREE.Texture(img);
+    img.onload = () => { tex.needsUpdate = true; };
+    tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
+    this.pMat.map = tex;
+    this.pMat.transparent = true;
+    this.pMat.alphaTest = 0.3;
+    this.pMat.size = 0.22;
+    this.pMat.needsUpdate = true;
+  }
+
+  addSnowflake(x, y, z) {
+    if (this.particles.length >= MAX_PARTICLES - 40) return;
+    this.particles.push({
+      x, y, z, vx: (Math.random() - 0.5) * 0.4, vy: -1.6 - Math.random(), vz: (Math.random() - 0.5) * 0.4,
+      life: 7, snow: true, r: 1, g: 1, b: 1,
+    });
+  }
 
   addFirefly(x, y, z) {
     if (this.particles.length >= MAX_PARTICLES - 20) return;
@@ -721,6 +744,9 @@ export class EntityManager {
         p.vz = Math.cos(p.t * 0.7 + p.seed * 2) * 0.5;
         p.vy = Math.sin(p.t * 1.3 + p.seed) * 0.3;
         blink = 0.15 + 0.85 * Math.max(0, Math.sin(p.t * 2.2 + p.seed * 3));
+      } else if (p.snow) {
+        // steady drift, settle on the ground
+        if (BLOCKS[w.getBlock(Math.floor(p.x), Math.floor(p.y - 0.1), Math.floor(p.z))].solid) p.life = Math.min(p.life, 0.4);
       } else {
         p.vy -= 14 * dt;
       }

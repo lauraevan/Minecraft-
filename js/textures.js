@@ -222,6 +222,9 @@ for (let s = 0; s < 10; s++) reg('crack' + s, p => {
 // ---------------------------------------------------------------
 // atlas build
 // ---------------------------------------------------------------
+const OVERRIDES = {};
+export function setTextureOverride(name, img) { OVERRIDES[name] = img; }
+
 let atlasData = null;
 export function buildAtlas() {
   if (atlasData) return atlasData;
@@ -231,10 +234,15 @@ export function buildAtlas() {
   const tiles = new Map();
   let idx = 0;
   for (const name of Object.keys(PAINT)) {
-    const p = new P(mulberry32(hashString(name)));
-    PAINT[name](p);
     const tx = idx % ATLAS, ty = (idx / ATLAS) | 0;
-    ctx.putImageData(new ImageData(p.d, TILE, TILE), tx * TILE, ty * TILE);
+    if (OVERRIDES[name]) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(OVERRIDES[name], tx * TILE, ty * TILE, TILE, TILE);
+    } else {
+      const p = new P(mulberry32(hashString(name)));
+      PAINT[name](p);
+      ctx.putImageData(new ImageData(p.d, TILE, TILE), tx * TILE, ty * TILE);
+    }
     tiles.set(name, [tx, ty]);
     idx++;
   }

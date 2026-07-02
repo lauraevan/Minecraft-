@@ -2,7 +2,7 @@
 // main.js — Crafter Mine game orchestrator
 // ---------------------------------------------------------------
 import * as THREE from './vendor/three.module.min.js';
-import { World, CHUNK, H, SEA, BIOME_NAMES, GRASSY_BIOMES, LEAFY_BIOMES } from './world.js';
+import { World, CHUNK, H, SEA, BIOME_NAMES, GRASSY_BIOMES, LEAFY_BIOMES, B_TUNDRA, B_TAIGA, B_MOUNT } from './world.js';
 import { meshChunk } from './mesher.js';
 import { BLOCKS, ITEMS, defOf, AIR, SMELTING, FUELS, SAPLINGS } from './blocks.js';
 import { buildAtlas, TILE, ATLAS } from './textures.js';
@@ -12,7 +12,7 @@ import { UI } from './ui.js';
 import { GameAudio } from './audio.js';
 import { saveWorld, loadMeta, loadChunks, clearSave } from './save.js';
 import { clamp, lerp } from './util.js';
-import { loadUserArt, userCrosshair, userSlotTile, logoUrl } from './assets.js';
+import { loadUserArt, userCrosshair, userSlotTile, logoUrl, particleSprite } from './assets.js';
 import { PostFX, PRESETS } from './post.js';
 import { Net } from './net.js';
 import { TouchControls } from './mobile.js';
@@ -899,6 +899,8 @@ async function startGame(seedStr, meta, netInit = null) {
   entities = new EntityManager(scene, world, audio);
   ui = new UI(player, audio);
   ui.onClose = () => { if (!paused && !player.dead) requestLock(); };
+  const pspr = particleSprite();
+  if (pspr) entities.setParticleTexture(pspr);
   ui.onDrop = stack => {
     const dir = player.lookDir();
     const eye = player.eyePos();
@@ -1110,6 +1112,20 @@ function frame(t) {
       if (underground) { if (Math.random() < 0.35) audio.ambient('cave'); }
       else if (df > 0.6 && LEAFY_BIOMES.includes(biome)) audio.ambient('birds');
       else if (df < 0.3 && GRASSY_BIOMES.includes(biome)) audio.ambient('crickets');
+    }
+    // village folk queued by worldgen
+    while (world.pendingMobs.length) {
+      const s2 = world.pendingMobs.pop();
+      if (entities.mobs.filter(m => m.type === 'villager').length < 10 && !entities.puppet)
+        entities.spawnMob(s2.type, s2.x + 0.5, s2.y, s2.z + 0.5);
+    }
+    // snowfall in cold biomes (drawn snow texture, drawn particles)
+    const pBiome = world.biomeAt(bx, bz);
+    if ([B_TUNDRA, B_TAIGA, B_MOUNT].includes(pBiome) && world.getSky(bx, Math.floor(player.pos.y + 1), bz) > 4) {
+      for (let i = 0; i < 3; i++) {
+        const ang2 = Math.random() * Math.PI * 2, d2 = Math.random() * 14;
+        entities.addSnowflake(player.pos.x + Math.cos(ang2) * d2, player.pos.y + 7 + Math.random() * 6, player.pos.z + Math.sin(ang2) * d2);
+      }
     }
     fireflyTimer -= dt;
     if (fireflyTimer <= 0) {

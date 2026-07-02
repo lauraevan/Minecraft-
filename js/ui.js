@@ -31,6 +31,8 @@ export class UI {
     this.enchIn = null;
     this.tradeSel = -1;
     this.onClose = null;
+    this.palFilter = '';
+    this.palList = PALETTE;
     this.trades = [
       { in: [{ id: 286, n: 3 }], out: { id: 265, n: 1 } },
       { in: [{ id: 257, n: 6 }], out: { id: 265, n: 1 } },
@@ -311,6 +313,43 @@ export class UI {
       return;
     }
 
+    if (this.screen === 'inventory' && this.player.gamemode === 'creative' && guiSheet('gui_search')) {
+      // hand-drawn creative search GUI
+      const L = GUI_LAYOUT.gui_search;
+      panel.classList.add('guiskin');
+      panel.style.backgroundImage = `url(${guiSheet('gui_search')})`;
+      $('maingrid').style.display = 'none';
+      $('hotgrid').style.display = 'none';
+      this.applyPalFilter();
+      L.pal.forEach(([x, y], i) => {
+        const d = mkSlot('pal', i, upper);
+        d.classList.add('gslot');
+        d.style.left = x * 2 + 'px';
+        d.style.top = y * 2 + 'px';
+      });
+      L.hot.forEach(([x, y], i) => {
+        const d = mkSlot('inv', i, upper);
+        d.classList.add('gslot');
+        d.style.left = x * 2 + 'px';
+        d.style.top = y * 2 + 'px';
+      });
+      const inp = document.createElement('input');
+      inp.id = 'palsearch';
+      inp.placeholder = 'Search items…';
+      inp.value = this.palFilter;
+      const [sx, sy, sw, shh] = L.search;
+      inp.style.cssText = `position:absolute;left:${sx * 2}px;top:${sy * 2}px;width:${sw * 2}px;height:${shh * 2}px;`;
+      inp.addEventListener('input', () => {
+        this.palFilter = inp.value;
+        this.applyPalFilter();
+        this.refresh();
+      });
+      inp.addEventListener('keydown', e => e.stopPropagation());
+      inp.addEventListener('pointerdown', e => e.stopPropagation());
+      upper.appendChild(inp);
+      setTimeout(() => inp.focus(), 50);
+      return;
+    }
     if (this.screen === 'inventory' && this.player.gamemode === 'creative') {
       const wrap = document.createElement('div');
       const lbl = document.createElement('div'); lbl.className = 'invlabel'; lbl.textContent = 'Creative — pick anything (click with item to trash)'; wrap.appendChild(lbl);
@@ -373,7 +412,7 @@ export class UI {
       case 'tradeIn': return this.tradeSel >= 0 ? this.trades[this.tradeSel].in[0] : null;
       case 'tradeIn2': return this.tradeSel >= 0 ? (this.trades[this.tradeSel].in[1] || null) : null;
       case 'tradeOut': return this.tradeSel >= 0 ? this.trades[this.tradeSel].out : null;
-      case 'pal': { const id = PALETTE[idx]; return id ? { id, n: 1 } : null; }
+      case 'pal': { const id = this.palList[idx]; return id ? { id, n: 1 } : null; }
       case 'armor': return p.armor[idx];
       case 'craft': return this.craft[idx];
       case 'craftOut': return this.craftResult();
@@ -418,7 +457,8 @@ export class UI {
     this.audio.play('click');
 
     if (zone === 'pal') {
-      const id = PALETTE[idx];
+      const id = this.palList[idx];
+      if (!id) return;
       if (this.cursor && this.cursor.id !== id) this.cursor = null;          // trash
       else if (this.cursor && this.cursor.id === id) this.cursor.n = Math.min(this.cursor.n + (button === 2 ? 1 : 16), defOf(id).stack ?? 64);
       else {
@@ -548,6 +588,14 @@ export class UI {
       }
     }
     this.refresh();
+  }
+
+  applyPalFilter() {
+    const f = this.palFilter.trim().toLowerCase();
+    this.palList = !f ? PALETTE : PALETTE.filter(id => {
+      const d = defOf(id);
+      return d && (d.disp.toLowerCase().includes(f) || d.name.includes(f.replace(/ /g, '_')));
+    });
   }
 
   tryEnchant(cost) {
