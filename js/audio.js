@@ -135,6 +135,10 @@ export class GameAudio {
       case 'creeper':
         this.burst(pos, { freq: 1400, q: 1.2, dur: 0.12, gain: 0.06 });
         break;
+      case 'villager':
+        this.tone(pos, { f0: 240, f1: 200, dur: 0.25, gain: 0.2, type: 'triangle' });
+        this.tone(pos, { f0: 260, f1: 210, dur: 0.2, gain: 0.15, type: 'triangle', delay: 0.28 });
+        break;
       case 'wolf':
         this.tone(pos, { f0: 480, f1: 300, dur: 0.08, gain: 0.22, type: 'square' });
         this.tone(pos, { f0: 520, f1: 320, dur: 0.08, gain: 0.22, type: 'square', delay: 0.14 });

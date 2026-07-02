@@ -12,7 +12,7 @@ import { UI } from './ui.js';
 import { GameAudio } from './audio.js';
 import { saveWorld, loadMeta, loadChunks, clearSave } from './save.js';
 import { clamp, lerp } from './util.js';
-import { loadUserArt, userCrosshair, userSlotTile } from './assets.js';
+import { loadUserArt, userCrosshair, userSlotTile, logoUrl } from './assets.js';
 import { PostFX, PRESETS } from './post.js';
 import { Net } from './net.js';
 import { TouchControls } from './mobile.js';
@@ -34,6 +34,11 @@ function saveSettings() { localStorage.setItem('cm_settings', JSON.stringify(SET
 const SPLASHES = ['Now with wolves!', 'Hand-drawn HUD!', 'Cozy shaders!', 'Punch a tree!', 'Cherry blossoms!',
   'Multiplayer co-op!', 'Also plays on phones!', 'Fireflies at dusk!', 'Bake some bread!', '100% original pixels!'];
 $('splash').textContent = SPLASHES[Math.random() * SPLASHES.length | 0];
+{ // hand-drawn logo
+  const lu = logoUrl();
+  if (lu) document.querySelector('#menu .title').outerHTML =
+    `<img src="${lu}" alt="logo" style="width:548px;max-width:92vw;image-rendering:pixelated;margin-bottom:4px">`;
+}
 const GAMEMODES = ['survival', 'creative', 'spectator'];
 let gmIdx = 0;
 $('btn-gamemode').addEventListener('click', () => {
@@ -471,6 +476,7 @@ function attackMob(mob, dir) {
   const held = player.held();
   const tool = held && ITEMS[held.id] ? ITEMS[held.id].tool : null;
   let dmg = tool ? tool.dmg : 1;
+  if (held && held.ench && (held.ench.n === 'Sharpness' || held.ench.n === 'Power')) dmg += held.ench.l * 1.5;
   if (!player.onGround && player.vel.y < 0) dmg *= 1.5; // crit
   if (mob.net) { // guest: host owns the mobs
     net.broadcast({ t: 'hit', i: entities.mobs.indexOf(mob), dmg });
@@ -493,6 +499,7 @@ function breakTimeFor(id) {
   const rightTool = tool && def.tool && tool.type === def.tool;
   const canHarvest = !def.needsTool || (rightTool && tool.tier >= def.tier);
   let speed = rightTool ? tool.speed : 1;
+  if (rightTool && held.ench && held.ench.n === 'Efficiency') speed *= 1 + 0.5 * held.ench.l;
   if (tool && tool.type === 'sword' && def.cross) speed = 10;
   return Math.max(0.05, def.hard * 1.5 / speed * (canHarvest ? 1 : 3.3));
 }
@@ -565,6 +572,7 @@ function handleMining(dt) {
 function tryInteract(ray) {
   const id = ray.id;
   if (id === 26) { exitLock(); ui.open('table'); return true; }
+  if (id === 85) { exitLock(); ui.open('enchant'); return true; }
   if (id === 27 || id === 28) { exitLock(); ui.open('furnace', ensureBE(ray.x, ray.y, ray.z, 'furnace')); return true; }
   if (id === 29) { exitLock(); ui.open('chest', ensureBE(ray.x, ray.y, ray.z, 'chest')); audio.play('dig_wood'); return true; }
   if (id === 49) { // bed
@@ -603,6 +611,7 @@ function handleTap(tap) {
   const { origin, dir } = screenDir(tap.x, tap.y);
   const ray = rayFromScreen(tap.x, tap.y);
   const mob = entities.raycastMob(origin, dir, Math.min(3.5, ray ? ray.dist : 3.5));
+  if (mob && mob.def.trader) { ui.open('trade'); placeCooldown = 0.3; return; }
   if (mob && tryTame(mob)) return;
   if (mob && player.attackCooldown <= 0) { attackMob(mob, dir); return; }
   doUse(ray, true);
@@ -611,9 +620,10 @@ function handleTap(tap) {
 function doUse(ray, just) {
   if (ray && just && !player.sneaking && tryInteract(ray)) { placeCooldown = 0.25; return; }
 
-  // feed / tame a mob you're looking at
+  // feed / tame / trade with a mob you're looking at
   if (just) {
     const mobT = entities.raycastMob(player.eyePos(), player.lookDir(), 3);
+    if (mobT && mobT.def.trader) { exitLock(); ui.open('trade'); placeCooldown = 0.3; return; }
     if (mobT && tryTame(mobT)) return;
   }
 
@@ -888,6 +898,7 @@ async function startGame(seedStr, meta, netInit = null) {
   player = new Player(world);
   entities = new EntityManager(scene, world, audio);
   ui = new UI(player, audio);
+  ui.onClose = () => { if (!paused && !player.dead) requestLock(); };
   ui.onDrop = stack => {
     const dir = player.lookDir();
     const eye = player.eyePos();
@@ -1038,7 +1049,7 @@ function frame(t) {
   const uiOpen = ui.isOpen() || paused || player.dead;
   const controlsActive = input.locked || (touch.active && !uiOpen);
   input.touchState = touch.active && !uiOpen && !paused
-    ? { fwd: touch.move.fwd, str: touch.move.str, jump: touch.jump, sneak: touch.sneak }
+    ? { fwd: touch.move.fwd, str: touch.move.str, jump: touch.jump, sneak: touch.sneak, flyToggle: touch.consumeFlyToggle() }
     : null;
 
   if (!paused) {

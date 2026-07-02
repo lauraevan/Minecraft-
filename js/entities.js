@@ -19,9 +19,11 @@ export const MOB_TYPES = {
   spider:   { w: 1.2, h: 0.9, hp: 16, speed: 2.8, dmg: 2, reach: 1.9, climbs: true, neutralDay: true, drops: r => [{ id: 267, n: 1 + (r() * 2 | 0) }] },
   creeper:  { w: 0.6, h: 1.7, hp: 20, speed: 2.4, exploder: true, drops: r => r() < 0.8 ? [{ id: 280, n: 1 + (r() * 2 | 0) }] : [] },
   wolf:     { w: 0.6, h: 0.85, hp: 12, speed: 2.6, passive: true, tameable: true, dmg: 3, drops: () => [] },
+  villager: { w: 0.6, h: 1.9, hp: 20, speed: 1.4, passive: true, trader: true, drops: () => [] },
 };
 const HOSTILES = ['zombie', 'skeleton', 'spider', 'creeper'];
-const PASSIVES = ['cow', 'pig', 'sheep', 'chicken', 'wolf'];
+const PASSIVES = ['cow', 'pig', 'sheep', 'chicken', 'wolf', 'villager'];
+const VILLAGER_BIOMES = [2, 10]; // plains, meadow
 const WOLF_BIOMES = [3, 5, 10, 11]; // forest, taiga, meadow, birch
 
 // ---------------- mob box models ----------------
@@ -82,6 +84,15 @@ const MOB_MODELS = {
     L([0.08, 0.08, 0.04], [-0.26, 0.44, -0.89], [120, 20, 20], { hp: 1 }), L([0.08, 0.08, 0.04], [0.26, 0.44, -0.89], [120, 20, 20], { hp: 1 }),
     L([1.7, 0.09, 0.09], [0, 0.45, -0.2], [35, 30, 28], { leg: 1 }), L([1.7, 0.09, 0.09], [0, 0.4, 0.1], [35, 30, 28], { leg: 1 }),
     L([1.7, 0.09, 0.09], [0, 0.45, 0.4], [35, 30, 28], { leg: 1 }), L([1.7, 0.09, 0.09], [0, 0.4, 0.65], [35, 30, 28], { leg: 1 }),
+  ],
+  villager: [
+    L([0.5, 0.78, 0.3], [0, 1.14, 0], [116, 82, 60]),
+    L([0.46, 0.5, 0.46], [0, 1.76, 0], [200, 156, 120], { head: 1 }),
+    L([0.1, 0.2, 0.08], [0, 1.68, -0.26], [186, 140, 104], { hp: 1 }),
+    L([0.08, 0.06, 0.04], [-0.11, 1.82, -0.24], [40, 90, 50], { hp: 1 }), L([0.08, 0.06, 0.04], [0.11, 1.82, -0.24], [40, 90, 50], { hp: 1 }),
+    L([0.44, 0.5, 0.34], [0, 0.66, 0], [96, 66, 48]),
+    L([0.2, 0.62, 0.2], [-0.34, 1.42, 0], [116, 82, 60], { arm: 1 }), L([0.2, 0.62, 0.2], [0.34, 1.42, 0], [116, 82, 60], { arm: 1 }),
+    L([0.2, 0.42, 0.2], [-0.12, 0.42, 0], [70, 48, 36], { leg: 1 }), L([0.2, 0.42, 0.2], [0.12, 0.42, 0], [70, 48, 36], { leg: 1 }),
   ],
   player: [
     L([0.5, 0.72, 0.28], [0, 1.16, 0], [70, 120, 180]),
@@ -403,6 +414,7 @@ export class EntityManager {
         if (w.getBlock(x, y, z) === 2 && y + 3 < H) {
           let type = PASSIVES[Math.random() * PASSIVES.length | 0];
           if (type === 'wolf' && !WOLF_BIOMES.includes(w.biomeAt(x, z))) type = 'sheep';
+          if (type === 'villager' && (!VILLAGER_BIOMES.includes(w.biomeAt(x, z)) || Math.random() < 0.5)) type = 'chicken';
           const n = 2 + (Math.random() * 2 | 0);
           for (let i = 0; i < n; i++)
             this.spawnMob(type, x + 0.5 + (Math.random() - 0.5) * 3, y + 1, z + 0.5 + (Math.random() - 0.5) * 3,
@@ -469,6 +481,7 @@ export class EntityManager {
         } else if (distP < (m.def.reach || 1.6) && m.attackTimer <= 0 && !player.dead) {
           m.attackTimer = 1.1;
           player.damage(m.def.dmg, { type: 'mob' });
+          if (m.type === 'spider' && Math.random() < 0.5) player.addEffect('poison', 5);
           this.audio.play('hurt', player.pos);
           const kd = Math.hypot(player.pos.x - m.pos.x, player.pos.z - m.pos.z) + 0.01;
           player.vel.x += (player.pos.x - m.pos.x) / kd * 7;

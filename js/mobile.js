@@ -14,6 +14,8 @@ export class TouchControls {
     this.sneak = false;
     this.mining = null;   // {x,y} screen px while long-press held
     this.tap = null;      // {x,y} one-shot short tap
+    this.flyToggle = false;
+    this.lastJumpTap = -1;
     if (!this.active) return;
     this.build();
   }
@@ -72,7 +74,12 @@ export class TouchControls {
       el.addEventListener('touchstart', e => { e.preventDefault(); on(); el.classList.add('on'); }, { passive: false });
       el.addEventListener('touchend', e => { e.preventDefault(); if (off) off(); if (off) el.classList.remove('on'); });
     };
-    hold('#tbtn-jump', () => { this.jump = true; }, () => { this.jump = false; });
+    hold('#tbtn-jump', () => {
+      this.jump = true;
+      const now = performance.now();
+      if (now - this.lastJumpTap < 300) this.flyToggle = true; // double-tap = creative fly
+      this.lastJumpTap = now;
+    }, () => { this.jump = false; });
     hold('#tbtn-sneak', () => {
       this.sneak = !this.sneak;
       root.querySelector('#tbtn-sneak').classList.toggle('on', this.sneak);
@@ -124,4 +131,5 @@ export class TouchControls {
 
   show(on) { if (this.root) this.root.style.display = on ? 'block' : 'none'; }
   consumeTap() { const t = this.tap; this.tap = null; return t; }
+  consumeFlyToggle() { const f = this.flyToggle; this.flyToggle = false; return f; }
 }

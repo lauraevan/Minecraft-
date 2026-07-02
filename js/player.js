@@ -171,6 +171,8 @@ export class Player {
     this.stats = { mined: 0, placed: 0, kills: 0, deaths: 0 };
     this.xp = 0; this.level = 0;
     this.gamemode = 'survival';
+    this.effects = {}; // id -> seconds remaining
+    this.effTimer = 0;
     this.flying = false;
     this.lastSpaceTap = -1;
     this.onDamaged = null; // callback(amount)
@@ -184,6 +186,9 @@ export class Player {
   }
   held() { return this.inventory[this.sel]; }
 
+  addEffect(id, dur) { this.effects[id] = Math.max(this.effects[id] || 0, dur); }
+  hasEffect(id) { return (this.effects[id] || 0) > 0; }
+
   xpNeed() { return 7 + this.level * 3; }
   addXP(n) {
     this.xp += n;
@@ -196,7 +201,7 @@ export class Player {
 
   armorPoints() {
     let p = 0;
-    for (const a of this.armor) if (a) p += ITEMS[a.id].armor.points;
+    for (const a of this.armor) if (a) p += ITEMS[a.id].armor.points + (a.ench ? a.ench.l : 0);
     return p;
   }
 
@@ -222,6 +227,8 @@ export class Player {
   eat(def) {
     this.hunger = clamp(this.hunger + def.food[0], 0, 20);
     this.saturation = Math.min(this.hunger, this.saturation + def.food[1]);
+    if (def.name === 'golden_apple') { this.addEffect('regen', 12); this.addEffect('speed', 20); }
+    if (def.name === 'rotten_flesh' && Math.random() < 0.6) this.addEffect('hunger', 20);
   }
 
   respawn() {
@@ -276,6 +283,7 @@ export class Player {
     } else { fwd = str = 0; this.sneaking = false; this.sprinting = false; }
 
     let speed = this.sneaking ? SNEAK : this.sprinting ? SPRINT : WALK;
+    if (this.hasEffect('speed')) speed *= 1.3;
     if (this.inWater) speed *= 0.55;
     const len = Math.max(1, Math.hypot(fwd, str)); // analog input keeps partial speed
     const jumpHeld = !uiOpen && (input.keys['Space'] || (ts && ts.jump));
@@ -292,6 +300,7 @@ export class Player {
       if (now - this.lastSpaceTap < 300) { this.flying = !this.flying; this.vel.y = 0; }
       this.lastSpaceTap = now;
     }
+    if (this.gamemode === 'creative' && ts && ts.flyToggle) { this.flying = !this.flying; this.vel.y = 0; }
     if (this.gamemode === 'spectator') this.flying = true;
     if (this.flying && this.gamemode === 'survival') this.flying = false;
 
@@ -354,6 +363,18 @@ export class Player {
 
     // --- survival ticks ---
     if (this.gamemode !== 'survival') { this.air = 10; return; }
+    // status effects
+    for (const k of Object.keys(this.effects)) {
+      this.effects[k] -= dt;
+      if (this.effects[k] <= 0) delete this.effects[k];
+    }
+    this.effTimer += dt;
+    if (this.effTimer >= 1.25) {
+      this.effTimer = 0;
+      if (this.hasEffect('regen')) this.health = Math.min(20, this.health + 1);
+      if (this.hasEffect('poison') && this.health > 1) { this.health -= 1; this.damageFlash = 0.6; }
+      if (this.hasEffect('hunger')) this.exhaustion += 1;
+    }
     this.envTimer += dt;
     if (this.envTimer >= 0.5) {
       this.envTimer = 0;

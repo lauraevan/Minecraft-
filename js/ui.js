@@ -12,7 +12,7 @@ for (let id = 1; id < 256; id++) {
 }
 for (const id of Object.keys(ITEMS)) PALETTE.push(+id);
 import { iconFor, hudIcon } from './textures.js';
-import { userHudIcon, userXpBar } from './assets.js';
+import { userHudIcon, userXpBar, guiSheet, GUI_LAYOUT, effectIcon } from './assets.js';
 
 const $ = id => document.getElementById(id);
 // prefer the player's hand-drawn HUD art, fall back to procedural icons
@@ -28,6 +28,17 @@ export class UI {
     this.craftSize = 2;
     this.furnaceBE = null;
     this.chestBE = null;
+    this.enchIn = null;
+    this.tradeSel = -1;
+    this.onClose = null;
+    this.trades = [
+      { in: [{ id: 286, n: 3 }], out: { id: 265, n: 1 } },
+      { in: [{ id: 257, n: 6 }], out: { id: 265, n: 1 } },
+      { in: [{ id: 265, n: 1 }], out: { id: 287, n: 3 } },
+      { in: [{ id: 265, n: 1 }], out: { id: 283, n: 6 } },
+      { in: [{ id: 265, n: 2 }], out: { id: 259, n: 1 } },
+      { in: [{ id: 265, n: 5 }], out: { id: 262, n: 1 } },
+    ];
     this.onDrop = null;        // cb(stack) → drop into world
     this.slotEls = [];         // {el, zone, idx}
     this.itemNameTimer = 0;
@@ -131,6 +142,19 @@ export class UI {
 
     $('vignette').style.opacity = Math.min(0.9, p.damageFlash + (p.health <= 4 ? 0.25 : 0));
 
+    // status effects (icons drawn on the inventory sheet)
+    let eff = $('effects');
+    if (!eff) {
+      eff = document.createElement('div'); eff.id = 'effects';
+      $('hud').appendChild(eff);
+    }
+    const ORDER = ['regen', 'speed', 'hunger', 'poison'];
+    const html = ORDER.filter(k => p.hasEffect(k)).map(k => {
+      const src = effectIcon(ORDER.indexOf(k));
+      return `<span class="fx">${src ? `<img src="${src}">` : ''}<i>${Math.ceil(p.effects[k])}s</i></span>`;
+    }).join('');
+    if (eff.innerHTML !== html) eff.innerHTML = html;
+
     if (this.toastTimer > 0) { this.toastTimer -= dt; if (this.toastTimer <= 0) $('toast').style.opacity = 0; }
 
     if (this.screen === 'furnace' || this.screen === 'chest' || this.screen) this.refreshDynamic();
@@ -149,6 +173,7 @@ export class UI {
       return;
     }
     if (!img) { img = document.createElement('img'); el.appendChild(img); }
+    img.classList.toggle('ench', !!stack.ench);
     const url = iconFor(stack.id);
     if (img.dataset.i !== String(stack.id)) { img.src = url; img.dataset.i = String(stack.id); }
     if (stack.n > 1) {
@@ -193,15 +218,26 @@ export class UI {
       if (left > 0 && this.onDrop) this.onDrop({ ...this.cursor, n: left });
       this.cursor = null;
     }
+    if (this.enchIn) {
+      const left = this.player.addItem(this.enchIn);
+      if (left > 0 && this.onDrop) this.onDrop({ ...this.enchIn, n: left });
+      this.enchIn = null;
+    }
     this.screen = null;
     $('invscreen').classList.add('hidden');
     $('cursorstack').classList.add('hidden');
+    if (this.onClose) this.onClose();
   }
 
   buildScreen() {
     this.slotEls = [];
     const upper = $('upperzone');
     upper.innerHTML = '';
+    const panel = $('invpanel');
+    panel.classList.remove('guiskin');
+    panel.style.backgroundImage = '';
+    $('maingrid').style.display = '';
+    $('hotgrid').style.display = '';
     const mkSlot = (zone, idx, parent) => {
       const d = document.createElement('div');
       d.className = 'slot';
@@ -210,6 +246,70 @@ export class UI {
       this.slotEls.push({ el: d, zone, idx });
       return d;
     };
+    // ✕ close button (mobile-friendly escape)
+    const xb = document.createElement('div');
+    xb.className = 'xbtn';
+    xb.textContent = '✕';
+    xb.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); this.close(); });
+    upper.appendChild(xb);
+
+    // hand-drawn GUI skins (standard 18px slot grid, drawn 2×)
+    const SKIN = { inventory: 'gui_inv', table: 'gui_craft', enchant: 'gui_enchant', trade: 'gui_trade' };
+    const skinName = SKIN[this.screen];
+    const sheetUrl = skinName && guiSheet(skinName);
+    if (sheetUrl && !(this.screen === 'inventory' && this.player.gamemode === 'creative')) {
+      const L = GUI_LAYOUT[skinName];
+      panel.classList.add('guiskin');
+      panel.style.backgroundImage = `url(${sheetUrl})`;
+      $('maingrid').style.display = 'none';
+      $('hotgrid').style.display = 'none';
+      const abs = (zone, idx, x, y, big) => {
+        const d = mkSlot(zone, idx, upper);
+        d.classList.add('gslot');
+        if (big) d.classList.add('gbig');
+        d.style.left = x * 2 + 'px';
+        d.style.top = y * 2 + 'px';
+      };
+      L.inv.forEach(([x, y], i) => abs('inv', 9 + i, x, y));
+      L.hot.forEach(([x, y], i) => abs('inv', i, x, y));
+      if (this.screen === 'inventory') {
+        L.armor.forEach(([x, y], i) => abs('armor', i, x, y));
+        L.craft.forEach(([x, y], i) => abs('craft', i, x, y));
+        abs('craftOut', 0, ...L.result[0]);
+        this.craftSize = 2;
+      } else if (this.screen === 'table') {
+        L.craft.forEach(([x, y], i) => abs('craft', i, x, y));
+        abs('craftOut', 0, ...L.result[0]);
+        this.craftSize = 3;
+      } else if (this.screen === 'enchant') {
+        abs('enchIn', 0, ...L.input[0]);
+        L.options.forEach(([x, y], i) => {
+          const b = document.createElement('div');
+          b.className = 'enchbtn';
+          b.style.left = x * 2 + 'px';
+          b.style.top = y * 2 + 'px';
+          b.textContent = (i + 1) + ' ✦';
+          b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); this.tryEnchant(i + 1); });
+          upper.appendChild(b);
+        });
+      } else if (this.screen === 'trade') {
+        abs('tradeIn', 0, ...L.in1[0]);
+        abs('tradeIn2', 0, ...L.in2[0]);
+        abs('tradeOut', 0, ...L.out[0], true);
+        const list = document.createElement('div');
+        list.className = 'tradelist';
+        this.trades.forEach((t, i) => {
+          const b = document.createElement('div');
+          b.className = 'tradebtn';
+          b.innerHTML = t.in.map(s2 => `<img src="${iconFor(s2.id)}"><b>${s2.n}</b>`).join('+') +
+            ' → ' + `<img src="${iconFor(t.out.id)}"><b>${t.out.n}</b>`;
+          b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); this.doTrade(i); });
+          list.appendChild(b);
+        });
+        upper.appendChild(list);
+      }
+      return;
+    }
 
     if (this.screen === 'inventory' && this.player.gamemode === 'creative') {
       const wrap = document.createElement('div');
@@ -269,6 +369,10 @@ export class UI {
     const p = this.player;
     switch (zone) {
       case 'inv': return p.inventory[idx];
+      case 'enchIn': return this.enchIn;
+      case 'tradeIn': return this.tradeSel >= 0 ? this.trades[this.tradeSel].in[0] : null;
+      case 'tradeIn2': return this.tradeSel >= 0 ? (this.trades[this.tradeSel].in[1] || null) : null;
+      case 'tradeOut': return this.tradeSel >= 0 ? this.trades[this.tradeSel].out : null;
       case 'pal': { const id = PALETTE[idx]; return id ? { id, n: 1 } : null; }
       case 'armor': return p.armor[idx];
       case 'craft': return this.craft[idx];
@@ -283,6 +387,8 @@ export class UI {
     const p = this.player;
     switch (zone) {
       case 'inv': p.inventory[idx] = stack; break;
+      case 'enchIn': this.enchIn = stack; break;
+      case 'tradeIn': case 'tradeIn2': case 'tradeOut': break;
       case 'armor': p.armor[idx] = stack; break;
       case 'craft': this.craft[idx] = stack; break;
       case 'furnIn': if (this.furnaceBE) this.furnaceBE.in = stack; break;
@@ -366,6 +472,11 @@ export class UI {
       return;
     }
 
+    if ((zone === 'tradeIn' || zone === 'tradeIn2' || zone === 'tradeOut')) return; // display only
+    if (zone === 'enchIn' && this.cursor) {
+      const d = defOf(this.cursor.id);
+      if (!d.tool && !d.armor) return;
+    }
     // ---- armor slot restriction ----
     if (zone === 'armor' && this.cursor) {
       const def = defOf(this.cursor.id);
@@ -436,6 +547,35 @@ export class UI {
         }
       }
     }
+    this.refresh();
+  }
+
+  tryEnchant(cost) {
+    const p = this.player, s = this.enchIn;
+    this.audio.play('click');
+    if (!s || s.ench) { this.toast(s ? 'Already enchanted!' : 'Put a tool, weapon or armor in the slot.'); return; }
+    const def = defOf(s.id);
+    let name = null;
+    if (def.tool) name = def.tool.type === 'sword' ? 'Sharpness' : def.tool.type === 'bow' ? 'Power' : 'Efficiency';
+    else if (def.armor) name = 'Protection';
+    if (!name) { this.toast('That cannot be enchanted.'); return; }
+    if (p.level < cost) { this.toast('Not enough levels (need ' + cost + ').'); return; }
+    p.level -= cost;
+    s.ench = { n: name, l: cost };
+    this.audio.play('level');
+    this.toast(name + ' ' + ['I', 'II', 'III'][cost - 1] + '!');
+    this.refresh();
+  }
+
+  doTrade(i) {
+    const p = this.player, t = this.trades[i];
+    this.tradeSel = i;
+    this.audio.play('click');
+    for (const s of t.in) if (p.countOf(s.id) < s.n) { this.toast('You need ' + s.n + '× ' + defOf(s.id).disp + '.'); this.refresh(); return; }
+    for (const s of t.in) p.removeN(s.id, s.n);
+    const left = p.addItem({ ...t.out });
+    if (left > 0 && this.onDrop) this.onDrop({ ...t.out, n: left });
+    this.audio.play('pop');
     this.refresh();
   }
 

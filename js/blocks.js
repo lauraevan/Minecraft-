@@ -103,6 +103,7 @@ const SAPS = ['oak', 'birch', 'spruce', 'jungle', 'cherry', 'acacia'];
 SAPS.forEach((s, i) => blk(79 + i, s + '_sapling', s[0].toUpperCase() + s.slice(1) + ' Sapling',
   { hard: 0.05, solid: false, transparent: true, cross: true, tex: { all: s + '_sapling' }, sound: 'grass' }));
 export const SAPLINGS = [79, 80, 81, 82, 83, 84]; // index = tree species
+blk(85, 'enchanting_table', 'Enchanting Table', { hard: 4, tool: 'pickaxe', tier: 1, needsTool: true, emit: 6, tex: { top: 'enchant_top', bottom: 'obsidian', side: 'enchant_side' } });
 
 export const BLOCKS = B;
 export const LOGS = [10, 13, 16, 59, 65, 68];
@@ -148,6 +149,7 @@ itm(283, 'arrow', 'Arrow');
 itm(285, 'wheat_seeds', 'Wheat Seeds');
 itm(286, 'wheat', 'Wheat');
 itm(287, 'bread', 'Bread', { food: [5, 6] });
+itm(288, 'golden_apple', 'Golden Apple', { food: [4, 9.6] });
 itm(284, 'bow', 'Bow', { stack: 1, tool: { type: 'bow', tier: 0, speed: 1, dmg: 1, dur: 384 } });
 
 // tools: [type, base dmg, dur, speed] per tier
@@ -235,6 +237,8 @@ ARMOR_MATS.forEach((M, si) => {
 });
 
 shaped(287, 1, ['WWW'], { W: [286] }); // bread
+shaped(288, 1, ['GGG', 'GAG', 'GGG'], { G: [261], A: [270] }); // golden apple
+shaped(85, 1, [' G ', 'DOD', 'OOO'], { G: [263], D: [262], O: [48] }); // enchanting table
 
 // wool dyeing-lite: skip. white wool from string:
 shaped(51, 1, ['SS', 'SS'], { S: [267] });
